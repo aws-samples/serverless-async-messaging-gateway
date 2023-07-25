@@ -1,0 +1,5 @@
+{
+  "enable-apigateway-logs": false,
+  "enable-stepfunctions-logs": false,
+  "destroy-all": true
+}

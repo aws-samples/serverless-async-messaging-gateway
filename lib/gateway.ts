@@ -11,6 +11,7 @@ import * as pipes from "aws-cdk-lib/aws-pipes";
 import * as sfn from "aws-cdk-lib/aws-stepfunctions";
 import type * as lambda from "aws-cdk-lib/aws-lambda";
 import { Construct } from "constructs";
+import { NagSuppressions } from "cdk-nag";
 
 export interface GatewayProps {
   // The Lambda token authorizer to authorize a websocket connection
@@ -49,11 +50,9 @@ export class Gateway extends Construct {
         connectionsTable,
       );
 
-    this.websocketAuthorizerArn = `arn:${
-      cdk.Stack.of(messagesWebsocket).partition
-    }:execute-api:${cdk.Stack.of(messagesWebsocket).region}:${
-      cdk.Stack.of(messagesWebsocket).account
-    }:${messagesWebsocket.ref}/authorizers/${authorizer.ref}`;
+    this.websocketAuthorizerArn = `arn:${cdk.Stack.of(messagesWebsocket).partition
+      }:execute-api:${cdk.Stack.of(messagesWebsocket).region}:${cdk.Stack.of(messagesWebsocket).account
+      }:${messagesWebsocket.ref}/authorizers/${authorizer.ref}`;
 
     const sendMessagesSfn = this.createSendMessageSfn(
       messagesTable,
@@ -140,6 +139,13 @@ export class Gateway extends Construct {
       ),
     );
 
+    NagSuppressions.addResourceSuppressions(role, [
+      {
+        id: "AwsSolutions-IAM4",
+        reason: "The API Gateway name is not known to restrict the policy resource scope.",
+      }
+    ])
+
     const apiGatewayAccount = new apigateway.CfnAccount(this, "Account", {
       cloudWatchRoleArn: role.roleArn,
     });
@@ -193,11 +199,9 @@ export class Gateway extends Construct {
       {
         apiId: messagesWebsocket.ref,
         integrationType: "AWS",
-        integrationUri: `arn:${
-          cdk.Stack.of(connectionsTable).partition
-        }:apigateway:${
-          cdk.Stack.of(connectionsTable).region
-        }:dynamodb:action/PutItem`,
+        integrationUri: `arn:${cdk.Stack.of(connectionsTable).partition
+          }:apigateway:${cdk.Stack.of(connectionsTable).region
+          }:dynamodb:action/PutItem`,
         credentialsArn: connectionsIntegrationRole.roleArn,
         integrationMethod: "POST",
         passthroughBehavior: "NEVER",
@@ -229,11 +233,9 @@ export class Gateway extends Construct {
       apiId: messagesWebsocket.ref,
       authorizerType: "REQUEST",
       name: "TokenAuthorizer",
-      authorizerUri: `arn:${cdk.Stack.of(authorizerFn).partition}:apigateway:${
-        cdk.Stack.of(authorizerFn).region
-      }:lambda:path/2015-03-31/functions/${
-        authorizerFn.functionArn
-      }/invocations`,
+      authorizerUri: `arn:${cdk.Stack.of(authorizerFn).partition}:apigateway:${cdk.Stack.of(authorizerFn).region
+        }:lambda:path/2015-03-31/functions/${authorizerFn.functionArn
+        }/invocations`,
       identitySource: ["route.request.querystring.token"],
     });
 
@@ -256,19 +258,31 @@ export class Gateway extends Construct {
       routeResponseKey: "$default",
     });
 
-    let defaultRouteSettings = undefined;
-    if (this.node.tryGetContext("enable-apigateway-logs")) {
-      defaultRouteSettings = {
-        loggingLevel: "INFO",
-        dataTraceEnabled: true,
-      };
-    }
+    const logGroup = new logs.LogGroup(this, "WebsocketAccessLogs");
 
     const stage = new apigatewayv2.CfnStage(this, "WebsocketStage", {
       apiId: messagesWebsocket.ref,
       stageName: "prod",
       autoDeploy: true,
-      defaultRouteSettings,
+      defaultRouteSettings: {
+        loggingLevel: "ERROR"
+      },
+      accessLogSettings: {
+        destinationArn: logGroup.logGroupArn,
+        format: JSON.stringify({
+          "requestId": "$context.requestId",
+          "extendedRequestId": "$context.extendedRequestId",
+          "ip": "$context.identity.sourceIp",
+          "caller": "$context.identity.caller",
+          "user": "$context.identity.user",
+          "requestTime": "$context.requestTime",
+          "httpMethod": "$context.httpMethod",
+          "resourcePath": "$context.resourcePath",
+          "status": "$context.status",
+          "protocol": "$context.protocol",
+          "responseLength": "$context.responseLength"
+        })
+      }
     });
 
     return { messagesWebsocket, stage, authorizer };
@@ -301,24 +315,21 @@ export class Gateway extends Construct {
     messagesTable.grantReadWriteData(sendUnsentMessagesSfnRole);
     messageSfn.grantStartExecution(sendUnsentMessagesSfnRole);
 
-    let logsOpt = undefined;
-    if (this.node.tryGetContext("enable-stepfunctions-logs")) {
-      const sendUnsentMessagesSfnLog = new logs.LogGroup(
-        this,
-        "SendUnsentMessagesSfnLog",
-        {
-          retention: logs.RetentionDays.ONE_DAY,
-        },
-      );
+    const sendUnsentMessagesSfnLog = new logs.LogGroup(
+      this,
+      "SendUnsentMessagesSfnLog",
+      {
+        retention: logs.RetentionDays.ONE_DAY,
+      },
+    );
 
-      sendUnsentMessagesSfnLog.grantWrite(sendUnsentMessagesSfnRole);
+    sendUnsentMessagesSfnLog.grantWrite(sendUnsentMessagesSfnRole);
 
-      logsOpt = {
-        destination: sendUnsentMessagesSfnLog,
-        level: sfn.LogLevel.ALL,
-        includeExecutionData: true,
-      };
-    }
+    const logsOpt = {
+      destination: sendUnsentMessagesSfnLog,
+      level: sfn.LogLevel.ALL,
+      includeExecutionData: false,
+    };
 
     // TODO: set limit of records
     const sendUnsentMessagesSfn = new sfn.StateMachine(
@@ -336,8 +347,16 @@ export class Gateway extends Construct {
         stateMachineType: sfn.StateMachineType.EXPRESS,
         role: sendUnsentMessagesSfnRole,
         logs: logsOpt,
+        tracingEnabled: true,
       },
     );
+
+    NagSuppressions.addResourceSuppressions(sendUnsentMessagesSfnRole, [
+      {
+        id: "AwsSolutions-IAM5",
+        reason: "The Step Functions name is unknown to restrict the policy to the resource.",
+      }
+    ], true);
 
     // Integrates with the Connections DynamoDB stream with a EventBridge pipe to start execution when a new websocket connection is made
     const pipeRole = new iam.Role(this, "NewConnectionPipeRole", {
@@ -362,8 +381,26 @@ export class Gateway extends Construct {
       },
     });
 
-    connectionsTable.grantStreamRead(pipeRole);
+    pipeRole.attachInlinePolicy(
+      new iam.Policy(this, "ReadStreamsPolicy", {
+        statements: [
+          new iam.PolicyStatement({
+            actions: ["dynamodb:DescribeStream", "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams"],
+            resources: [`${connectionsTable.tableArn}/stream/*`],
+          })
+        ]
+      })
+    );
+
+    // connectionsTable.grantStreamRead(pipeRole);
     sendUnsentMessagesSfn.grantStartExecution(pipeRole);
+
+    NagSuppressions.addResourceSuppressionsByPath(cdk.Stack.of(this), "/ServerlessAsyncMessagingGatewayStack/Gateway/ReadStreamsPolicy/Resource", [
+      {
+        id: "AwsSolutions-IAM5",
+        reason: "The streams are created during execution.",
+      }
+    ]);
 
     return sendUnsentMessagesSfn;
   }
@@ -393,44 +430,47 @@ export class Gateway extends Construct {
       new iam.PolicyStatement({
         actions: ["execute-api:ManageConnections"],
         resources: [
-          `arn:${cdk.Stack.of(messagesWebsocket).partition}:execute-api:${
-            cdk.Stack.of(messagesWebsocket).region
-          }:${cdk.Stack.of(messagesWebsocket).account}:${
-            messagesWebsocket.attrApiId
+          `arn:${cdk.Stack.of(messagesWebsocket).partition}:execute-api:${cdk.Stack.of(messagesWebsocket).region
+          }:${cdk.Stack.of(messagesWebsocket).account}:${messagesWebsocket.attrApiId
           }/${apiStage}/POST/@connections/*`,
         ],
       }),
     );
 
-    let logsOpt = undefined;
-    if (this.node.tryGetContext("enable-stepfunctions-logs")) {
-      const sendMessageSfnLog = new logs.LogGroup(this, "SendMessageSfnLog", {
-        retention: logs.RetentionDays.ONE_DAY,
-      });
+    NagSuppressions.addResourceSuppressions(sendMessageSfnRole, [
+      {
+        id: "AwsSolutions-IAM5",
+        reason: "The connecion ID is dynamic created during execution.",
+      }
+    ],
+      true);
 
-      sendMessageSfnLog.grantWrite(sendMessageSfnRole);
+    const sendMessageSfnLog = new logs.LogGroup(this, "SendMessageSfnLog", {
+      retention: logs.RetentionDays.ONE_DAY,
+    });
 
-      logsOpt = {
-        destination: sendMessageSfnLog,
-        level: sfn.LogLevel.ALL,
-        includeExecutionData: true,
-      };
-    }
+    sendMessageSfnLog.grantWrite(sendMessageSfnRole);
+
+    const logsOpt = {
+      destination: sendMessageSfnLog,
+      level: sfn.LogLevel.ALL,
+      includeExecutionData: false,
+    };
 
     const sendMessageSfn = new sfn.StateMachine(this, "SendMessage", {
       definitionBody: sfn.DefinitionBody.fromFile("assets/SendMessage.asl"),
       definitionSubstitutions: {
         MessagesTable: messagesTable.tableName,
         ConnectionsTable: connectionsTable.tableName,
-        ApiEndpoint: `${messagesWebsocket.attrApiId}.execute-api.${
-          cdk.Stack.of(this).region
-        }.amazonaws.com`,
+        ApiEndpoint: `${messagesWebsocket.attrApiId}.execute-api.${cdk.Stack.of(this).region
+          }.amazonaws.com`,
         ApiStage: apiStage,
         partition: cdk.Stack.of(this).partition,
       },
       stateMachineType: sfn.StateMachineType.EXPRESS,
       role: sendMessageSfnRole,
       logs: logsOpt,
+      tracingEnabled: true,
     });
 
     return sendMessageSfn;
@@ -447,13 +487,13 @@ export class Gateway extends Construct {
     apiGatewayAccount: apigateway.CfnAccount,
     messageSfn: sfn.IStateMachine,
   ): apigateway.RestApi {
-    let deployOptions;
-    if (this.node.tryGetContext("enable-apigateway-logs")) {
-      deployOptions = {
-        loggingLevel: apigateway.MethodLoggingLevel.INFO,
-        dataTraceEnabled: true,
-      };
-    }
+    const logGroup = new logs.LogGroup(this, "MessageApiAccessLogs");
+
+    const deployOptions: apigateway.StageOptions = {
+      loggingLevel: apigateway.MethodLoggingLevel.ERROR,
+      accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
+      accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
+    };
 
     const messageApi = new apigateway.RestApi(this, "Message", {
       deploy: true,
@@ -480,7 +520,21 @@ export class Gateway extends Construct {
       }),
     );
 
-    messageResource.addMethod(
+    const messageModel = messageApi.addModel("MessageModel", {
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          userId: {
+            type: apigateway.JsonSchemaType.STRING,
+          },
+          message: {
+            type: apigateway.JsonSchemaType.STRING,
+          },
+        }
+      }
+    });
+
+    const postMethod = messageResource.addMethod(
       "POST",
       new apigateway.AwsIntegration({
         service: "states",
@@ -505,8 +559,22 @@ export class Gateway extends Construct {
             statusCode: "200",
           },
         ],
+        requestValidatorOptions: {
+          validateRequestBody: true,
+          validateRequestParameters: true,
+        },
+        requestModels: {
+          "application/json": messageModel
+        }
       },
     );
+
+    NagSuppressions.addResourceSuppressions(postMethod, [
+      {
+        id: "AwsSolutions-COG4",
+        reason: "The API GW POST uses IAM as the authorizer.",
+      }
+    ]);
 
     return messageApi;
   }
@@ -521,10 +589,8 @@ export class Gateway extends Construct {
       new iam.PolicyStatement({
         actions: ["execute-api:Invoke"],
         resources: [
-          `arn:${cdk.Stack.of(this.messageApi).partition}:execute-api:${
-            cdk.Stack.of(this.messageApi).region
-          }:${cdk.Stack.of(this.messageApi).account}:${
-            this.messageApi.restApiId
+          `arn:${cdk.Stack.of(this.messageApi).partition}:execute-api:${cdk.Stack.of(this.messageApi).region
+          }:${cdk.Stack.of(this.messageApi).account}:${this.messageApi.restApiId
           }/${this.messageApi.deploymentStage.stageName}/POST/message`,
         ],
       }),

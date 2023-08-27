@@ -8,8 +8,10 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as kms from "aws-cdk-lib/aws-kms";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
-import type * as iam from "aws-cdk-lib/aws-iam";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as logs from "aws-cdk-lib/aws-logs";
 import { Construct } from "constructs";
+import { NagSuppressions } from "cdk-nag";
 
 const TOKENS_PATH = "tokens";
 
@@ -89,8 +91,21 @@ export class Authentication extends Construct {
         email: true,
       },
       accountRecovery: cognito.AccountRecovery.NONE,
+      passwordPolicy: {
+        minLength: 8,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: true,
+      },
       removalPolicy,
     });
+
+    NagSuppressions.addResourceSuppressions(userPool, [
+      {
+        id: "AwsSolutions-COG3",
+        reason: "Additional pricing applies for Amazon Cognito advanced security features and it isn't needed for this demo. It should be considered for production.",
+      }
+    ]);
 
     const client = userPool.addClient("Client", {
       authFlows: {
@@ -156,6 +171,7 @@ export class Authentication extends Construct {
     tokensTable: dynamodb.ITable,
     kms: kms.IKey,
   ): lambda.IFunction {
+
     const lambdaFn = new nodejs.NodejsFunction(this, "Generator", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -174,7 +190,24 @@ export class Authentication extends Construct {
       },
     });
 
-    kms.grantEncrypt(lambdaFn);
+    lambdaFn.role?.attachInlinePolicy(
+      new iam.Policy(this, "ExecutionPolicy", {
+        statements: [
+          new iam.PolicyStatement({
+            actions: ["kms:Encrypt"],
+            resources: [kms.keyArn],
+          })
+        ]
+      })
+    );
+
+    NagSuppressions.addResourceSuppressions(lambdaFn.role!, [
+      {
+        id: "AwsSolutions-IAM4",
+        reason: "Lambda function name is not known before deployment to restrict resource scope, so the managed policy works here.",
+      }
+    ]);
+
     tokensTable.grantWriteData(lambdaFn);
 
     return lambdaFn;
@@ -199,6 +232,8 @@ export class Authentication extends Construct {
       },
     );
 
+    const logGroup = new logs.LogGroup(this, "ApiGatewayAccessLogs");
+
     const api = new apigateway.LambdaRestApi(this, "GetToken", {
       handler: lambdaFn,
       proxy: false,
@@ -207,10 +242,20 @@ export class Authentication extends Construct {
         authorizer: auth,
       },
       deploy: true,
+      deployOptions: {
+        accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
+        loggingLevel: apigateway.MethodLoggingLevel.ERROR,
+      }
     });
 
     const tokens = api.root.addResource(TOKENS_PATH);
-    tokens.addMethod("GET");
+    tokens.addMethod("GET", undefined, {
+      requestValidatorOptions: {
+        validateRequestParameters: true,
+        validateRequestBody: true,
+      }
+    });
 
     return api;
   }
@@ -228,6 +273,7 @@ export class Authentication extends Construct {
     tokensTable: dynamodb.ITable,
     kms: kms.IKey,
   ): lambda.IFunction {
+
     const lambdaFn = new nodejs.NodejsFunction(this, "Authorizer", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -245,6 +291,31 @@ export class Authentication extends Construct {
         NODE_OPTIONS: "--enable-source-maps",
       },
     });
+
+    NagSuppressions.addResourceSuppressions(lambdaFn.role!, [
+      {
+        id: "AwsSolutions-IAM4",
+        reason: "Lambda function name is not known before deployment to restrict resource scope.",
+      }
+    ]);
+
+    // lambdaFn.role?.attachInlinePolicy(
+    //   new iam.Policy(this, "ExecutionPolicy", {
+    //     statements: [
+    //       // new iam.PolicyStatement({
+    //       //   actions: ["kms:Encrypt"],
+    //       //   resources: [kms.keyArn],
+    //       // })
+    //     ]
+    //   })
+    // );
+
+    // NagSuppressions.addResourceSuppressionsByPath(cdk.Stack.of(this), "/ServerlessAsyncMessagingGatewayStack/Authentication/ExecutionPolicy/Resource", [
+    //   {
+    //     id: "AwsSolutions-IAM5",
+    //     reason: "Lambda function name is not known before deployment.",
+    //   }
+    // ]);
 
     kms.grantDecrypt(lambdaFn);
     tokensTable.grantWriteData(lambdaFn);

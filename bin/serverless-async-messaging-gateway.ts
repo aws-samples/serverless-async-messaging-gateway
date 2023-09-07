@@ -4,11 +4,11 @@
 
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
-import { AwsSolutionsChecks } from 'cdk-nag';
+import { AwsSolutionsChecks } from "cdk-nag";
 import { ServerlessAsyncMessagingGatewayStack } from "../lib/serverless-async-messaging-gateway-stack";
 
 const app = new cdk.App();
-cdk.Aspects.of(app).add(new AwsSolutionsChecks({verbose: true}));
+cdk.Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 new ServerlessAsyncMessagingGatewayStack(
   app,
   "ServerlessAsyncMessagingGatewayStack",

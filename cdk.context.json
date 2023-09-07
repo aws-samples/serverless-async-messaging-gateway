@@ -1,3 +1,5 @@
 {
-  "destroy-all": true
+  "destroy-all": true,
+  "max-message-size": 1024,
+  "api-log-level": "ERROR"
 }

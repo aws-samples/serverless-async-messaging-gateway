@@ -13,6 +13,8 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import { Construct } from "constructs";
 import { NagSuppressions } from "cdk-nag";
 
+import * as utils from "./utils";
+
 const TOKENS_PATH = "tokens";
 
 export interface AuthenticationProps {
@@ -30,11 +32,16 @@ export class Authentication extends Construct {
   // The Lambda authorizer to validate the temp token from the query string
   public readonly tokenAuthorizerFn: lambda.IFunction;
 
+  // The Powertools Layer
+  private readonly powertoolsLayer: lambda.ILayerVersion;
+
   /**
    * Constructs the authentication component.
    */
   constructor(scope: Construct, id: string, props: AuthenticationProps) {
     super(scope, id);
+
+    this.powertoolsLayer = this.createPowertoolsLayer();
 
     const { userPool, client } = this.createCognitoUserPool();
     this.userPool = userPool;
@@ -43,13 +50,12 @@ export class Authentication extends Construct {
 
     const kms = this.createKms();
 
-    const generator = this.createTokenGeneratorLambda(
+    const api = this.createGetTokenApi(
       props.service,
       tokensTable,
       kms,
+      this.userPool,
     );
-
-    const api = this.createGetTokenApi(generator, this.userPool);
 
     this.tokenAuthorizerFn = this.createTokenAuthorizerLambda(
       props.service,
@@ -57,13 +63,13 @@ export class Authentication extends Construct {
       kms,
     );
 
-    new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId }); // eslint-disable-line no-new
+    new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new cdk.CfnOutput(this, "UserPoolClientId", {
       value: client.userPoolClientId,
-    }); // eslint-disable-line no-new
+    });
     new cdk.CfnOutput(this, "TokenApiUrl", {
       value: api.urlForPath("/" + TOKENS_PATH),
-    }); // eslint-disable-line no-new
+    });
   }
 
   /**
@@ -75,10 +81,6 @@ export class Authentication extends Construct {
     userPool: cognito.IUserPool;
     client: cognito.IUserPoolClient;
   } {
-    let removalPolicy = undefined;
-    if (this.node.tryGetContext("destroy-all")) {
-      removalPolicy = cdk.RemovalPolicy.DESTROY;
-    }
     const userPool = new cognito.UserPool(this, "UserPool", {
       signInCaseSensitive: false,
       selfSignUpEnabled: true,
@@ -97,14 +99,15 @@ export class Authentication extends Construct {
         requireDigits: true,
         requireSymbols: true,
       },
-      removalPolicy,
+      removalPolicy: utils.getRemovalPolicy(this.node),
     });
 
     NagSuppressions.addResourceSuppressions(userPool, [
       {
         id: "AwsSolutions-COG3",
-        reason: "Additional pricing applies for Amazon Cognito advanced security features and it isn't needed for this demo. It should be considered for production.",
-      }
+        reason:
+          "Additional pricing applies for Amazon Cognito advanced security features and it isn't needed for this demo. It should be considered for production.",
+      },
     ]);
 
     const client = userPool.addClient("Client", {
@@ -125,11 +128,6 @@ export class Authentication extends Construct {
    * @returns a reference to the DynamoDB table.
    */
   private createTempTokensTable(): dynamodb.ITable {
-    let removalPolicy;
-    if (this.node.tryGetContext("destroy-all")) {
-      removalPolicy = cdk.RemovalPolicy.DESTROY;
-    }
-
     const table = new dynamodb.Table(this, "TempTokens", {
       partitionKey: {
         name: "token",
@@ -137,7 +135,7 @@ export class Authentication extends Construct {
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       timeToLiveAttribute: "ttl",
-      removalPolicy,
+      removalPolicy: utils.getRemovalPolicy(this.node),
     });
 
     return table;
@@ -153,30 +151,62 @@ export class Authentication extends Construct {
       enableKeyRotation: true,
       keySpec: kms.KeySpec.SYMMETRIC_DEFAULT,
       keyUsage: kms.KeyUsage.ENCRYPT_DECRYPT,
+      removalPolicy: utils.getRemovalPolicy(this.node),
     });
 
     return key;
   }
 
   /**
-   * Creates the token generator Lambda function.
+   * Creates the Powertools Layer.
    *
-   * @param service the service name for issuer and audience of the encrypted token.
-   * @param tokensTable the DynamoDB table to store the generated token.
-   * @param kms the key to encrypt the generated token.
-   * @returns a reference to the Lambda function.
+   * @return the layer reference.
    */
-  private createTokenGeneratorLambda(
+  private createPowertoolsLayer(): lambda.ILayerVersion {
+    return lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "PowertoolsLayer",
+      `arn:aws:lambda:${
+        cdk.Stack.of(this).region
+      }:094274105915:layer:AWSLambdaPowertoolsTypeScript:18`,
+    );
+  }
+
+  /**
+   * Creates the API to request the temporary token.
+   *
+   * @param service the service name to set as issuer and audience.
+   * @param tokensTable the DynamoDB table to store the tokens.
+   * @param kms the KMS key to encrypt the tokens.
+   * @param userPool the Cognito User Pool to authenticate the user.
+   * @returns reference to the REST API.
+   *
+   * @remarks
+   * The API Gatewat REST API is created with the following resources
+   * - /tokens: a GET endpoint to request the temporary token.
+   */
+  private createGetTokenApi(
     service: string,
     tokensTable: dynamodb.ITable,
     kms: kms.IKey,
-  ): lambda.IFunction {
+    userPool: cognito.IUserPool,
+  ): apigateway.RestApi {
+    // The Lambda function to generate the temporary token.
 
     const lambdaFn = new nodejs.NodejsFunction(this, "Generator", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
+      layers: [this.powertoolsLayer],
+      logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
-        externalModules: ["aws-sdk", "@aws-sdk/*"],
+        externalModules: [
+          "aws-sdk",
+          "@aws-sdk/*",
+          "@aws-lambda-powertools/commons",
+          "@aws-lambda-powertools/logger",
+          "@aws-lambda-powertools/metrics",
+          "@aws-lambda-powertools/tracer",
+        ],
         format: nodejs.OutputFormat.ESM,
         target: "node18",
         minify: true,
@@ -187,8 +217,10 @@ export class Authentication extends Construct {
         KEY_ID: kms.keyId,
         SERVICE: service,
         NODE_OPTIONS: "--enable-source-maps",
+        POWERTOOLS_SERVICE_NAME: "token-generator",
       },
     });
+    utils.applyLogRemovalPolicy(lambdaFn);
 
     lambdaFn.role?.attachInlinePolicy(
       new iam.Policy(this, "ExecutionPolicy", {
@@ -196,34 +228,23 @@ export class Authentication extends Construct {
           new iam.PolicyStatement({
             actions: ["kms:Encrypt"],
             resources: [kms.keyArn],
-          })
-        ]
-      })
+          }),
+        ],
+      }),
     );
 
-    NagSuppressions.addResourceSuppressions(lambdaFn.role!, [
-      {
-        id: "AwsSolutions-IAM4",
-        reason: "Lambda function name is not known before deployment to restrict resource scope, so the managed policy works here.",
-      }
-    ]);
+    if (lambdaFn.role !== undefined)
+      NagSuppressions.addResourceSuppressions(lambdaFn.role, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "Lambda function name is not known before deployment to restrict resource scope, so the managed policy works here.",
+        },
+      ]);
 
     tokensTable.grantWriteData(lambdaFn);
 
-    return lambdaFn;
-  }
-
-  /**
-   * Creates the API to request the temporary token.
-   *
-   * @param lambdaFn the Lambda function that generates the token.
-   * @param userPool the Cognito User Pool to authenticate the user.
-   * @returns reference to the REST API.
-   */
-  private createGetTokenApi(
-    lambdaFn: lambda.IFunction,
-    userPool: cognito.IUserPool,
-  ): apigateway.RestApi {
+    // REST API to generate the token
     const auth = new apigateway.CognitoUserPoolsAuthorizer(
       this,
       "CognitoAuthorizer",
@@ -232,9 +253,13 @@ export class Authentication extends Construct {
       },
     );
 
-    const logGroup = new logs.LogGroup(this, "ApiGatewayAccessLogs");
+    const logGroup = new logs.LogGroup(this, "ApiGatewayAccessLogs", {
+      retention: logs.RetentionDays.ONE_DAY,
+      removalPolicy: utils.getRemovalPolicy(this.node),
+    });
 
     const api = new apigateway.LambdaRestApi(this, "GetToken", {
+      endpointTypes: [apigateway.EndpointType.REGIONAL],
       handler: lambdaFn,
       proxy: false,
       defaultMethodOptions: {
@@ -244,9 +269,9 @@ export class Authentication extends Construct {
       deploy: true,
       deployOptions: {
         accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
-        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
-        loggingLevel: apigateway.MethodLoggingLevel.ERROR,
-      }
+        accessLogFormat: utils.ACCESS_LOG_FORMAT,
+        ...utils.getApiLog(this.node),
+      },
     });
 
     const tokens = api.root.addResource(TOKENS_PATH);
@@ -254,7 +279,7 @@ export class Authentication extends Construct {
       requestValidatorOptions: {
         validateRequestParameters: true,
         validateRequestBody: true,
-      }
+      },
     });
 
     return api;
@@ -273,12 +298,20 @@ export class Authentication extends Construct {
     tokensTable: dynamodb.ITable,
     kms: kms.IKey,
   ): lambda.IFunction {
-
     const lambdaFn = new nodejs.NodejsFunction(this, "Authorizer", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
+      layers: [this.powertoolsLayer],
+      logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
-        externalModules: ["aws-sdk", "@aws-sdk/*"],
+        externalModules: [
+          "aws-sdk",
+          "@aws-sdk/*",
+          "@aws-lambda-powertools/commons",
+          "@aws-lambda-powertools/logger",
+          "@aws-lambda-powertools/metrics",
+          "@aws-lambda-powertools/tracer",
+        ],
         format: nodejs.OutputFormat.ESM,
         target: "node18",
         minify: true,
@@ -289,33 +322,19 @@ export class Authentication extends Construct {
         KEY_ID: kms.keyId,
         SERVICE: service,
         NODE_OPTIONS: "--enable-source-maps",
+        POWERTOOLS_SERVICE_NAME: "lambda-authorizer",
       },
     });
+    utils.applyLogRemovalPolicy(lambdaFn);
 
-    NagSuppressions.addResourceSuppressions(lambdaFn.role!, [
-      {
-        id: "AwsSolutions-IAM4",
-        reason: "Lambda function name is not known before deployment to restrict resource scope.",
-      }
-    ]);
-
-    // lambdaFn.role?.attachInlinePolicy(
-    //   new iam.Policy(this, "ExecutionPolicy", {
-    //     statements: [
-    //       // new iam.PolicyStatement({
-    //       //   actions: ["kms:Encrypt"],
-    //       //   resources: [kms.keyArn],
-    //       // })
-    //     ]
-    //   })
-    // );
-
-    // NagSuppressions.addResourceSuppressionsByPath(cdk.Stack.of(this), "/ServerlessAsyncMessagingGatewayStack/Authentication/ExecutionPolicy/Resource", [
-    //   {
-    //     id: "AwsSolutions-IAM5",
-    //     reason: "Lambda function name is not known before deployment.",
-    //   }
-    // ]);
+    if (lambdaFn.role !== undefined)
+      NagSuppressions.addResourceSuppressions(lambdaFn.role, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "Lambda function name is not known before deployment to restrict resource scope.",
+        },
+      ]);
 
     kms.grantDecrypt(lambdaFn);
     tokensTable.grantWriteData(lambdaFn);
@@ -329,7 +348,7 @@ export class Authentication extends Construct {
    * @param principal the principal to add permission to.
    * @param sourceArn the source ARN to add permission to.
    */
-  addAuthorizerInvokePermission(
+  public addAuthorizerInvokePermission(
     principal: iam.IPrincipal,
     sourceArn: string,
   ): void {

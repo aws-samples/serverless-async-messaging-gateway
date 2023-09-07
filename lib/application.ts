@@ -10,9 +10,9 @@ import type * as cognito from "aws-cdk-lib/aws-cognito";
 import { Construct } from "constructs";
 import { NagSuppressions } from "cdk-nag";
 
+import * as utils from "./utils";
 
 const PROCESS_PATH = "process";
-const MESSAGE_MAX_LENGTH = 4 * 1024;
 
 export interface ApplicationProps {
   // The message URL to send the message.
@@ -39,7 +39,6 @@ export class Application extends Construct {
     const restApi = this.createRestApi(this.lambdaFn, props.userPool);
 
     new cdk.CfnOutput(this, "ApiUrl", {
-      // eslint-disable-line no-new
       value: restApi.urlForPath("/" + PROCESS_PATH),
     });
   }
@@ -51,13 +50,29 @@ export class Application extends Construct {
    * @returns the created Lambda function.
    */
   private createApp(messageUrl: string): lambda.IFunction {
+    const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      "PowertoolsLayer",
+      `arn:aws:lambda:${
+        cdk.Stack.of(this).region
+      }:094274105915:layer:AWSLambdaPowertoolsTypeScript:18`,
+    );
 
     const sampleHandler = new nodejs.NodejsFunction(this, "sample", {
       runtime: lambda.Runtime.NODEJS_18_X,
       architecture: lambda.Architecture.ARM_64,
       timeout: cdk.Duration.minutes(15),
+      layers: [powertoolsLayer],
+      logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
-        externalModules: ["aws-sdk", "@aws-sdk/*"],
+        externalModules: [
+          "aws-sdk",
+          "@aws-sdk/*",
+          "@aws-lambda-powertools/commons",
+          "@aws-lambda-powertools/logger",
+          "@aws-lambda-powertools/metrics",
+          "@aws-lambda-powertools/tracer",
+        ],
         format: nodejs.OutputFormat.CJS,
         target: "node18",
         minify: true,
@@ -66,19 +81,39 @@ export class Application extends Construct {
       environment: {
         MESSAGE_API: messageUrl,
         NODE_OPTIONS: "--enable-source-maps",
+        POWERTOOLS_SERVICE_NAME: "sampleapp",
       },
     });
+    utils.applyLogRemovalPolicy(sampleHandler);
 
-    NagSuppressions.addResourceSuppressions(sampleHandler.role!, [
-      {
-        id: "AwsSolutions-IAM4",
-        reason: "Lambda function name is not known before deployment to restrict resource scope, so the managed policy works here.",
-      }
-    ]);
+    if (sampleHandler.role !== undefined)
+      NagSuppressions.addResourceSuppressions(sampleHandler.role, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "Lambda function name is not known before deployment to restrict resource scope, so the managed policy works here.",
+        },
+      ]);
 
     return sampleHandler;
   }
 
+  /**
+   * Create the REST API for the sample application.
+   *
+   * @param appFn the Lambda function of the sample application.
+   * @param userPool the Cognito User Pool for user authorization.
+   * @returns the created API Gateway REST API.
+   *
+   * @remarks
+   * The API Gateway REST API is created with the following resources:
+   * - /process: a POST endpoint to send the message. The message is processed asynchronously, so the client doesn't need to wait for the return.
+   *
+   * The payload needs to have the following properties:
+   * - userId {string}: the user ID from the Cognito User Pool.
+   * - message {string}: the message to send.
+   * - wait {number}: the number of seconds to wait before sending the message.
+   */
   private createRestApi(
     appFn: lambda.IFunction,
     userPool: cognito.IUserPool,
@@ -91,16 +126,19 @@ export class Application extends Construct {
       },
     );
 
-    const logGroup = new logs.LogGroup(this, "SampleAppAccessLogs");
+    const logGroup = new logs.LogGroup(this, "SampleAppAccessLogs", {
+      retention: logs.RetentionDays.ONE_DAY,
+      removalPolicy: utils.getRemovalPolicy(this.node),
+    });
 
     const api = new apigateway.RestApi(this, "Process", {
       endpointTypes: [apigateway.EndpointType.REGIONAL],
       deploy: true,
       deployOptions: {
-        loggingLevel: apigateway.MethodLoggingLevel.ERROR,
+        ...utils.getApiLog(this.node),
         accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
-        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
-      }
+        accessLogFormat: utils.ACCESS_LOG_FORMAT,
+      },
     });
 
     const processModel = api.addModel("RequestModel", {
@@ -112,66 +150,65 @@ export class Application extends Construct {
           },
           message: {
             type: apigateway.JsonSchemaType.STRING,
-            maxLength: MESSAGE_MAX_LENGTH,
+            maxLength: utils.getMaxMessageSize(this.node),
           },
           wait: {
             type: apigateway.JsonSchemaType.NUMBER,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     const process = api.root.addResource(PROCESS_PATH);
 
-    // Not using proxy to be able to do asynchronous calls.
-    process.addMethod(
-      "POST",
-      new apigateway.LambdaIntegration(appFn, {
-        proxy: false,
-        requestTemplates: {
-          "application/json": `{"body": "$util.escapeJavaScript($input.json('$'))"}`,
-        },
-        requestParameters: {
-          "integration.request.header.X-Amz-Invocation-Type": "'Event'",
-        },
-        integrationResponses: [
-          {
-            statusCode: "202",
-          },
-          {
-            statusCode: "500",
-            selectionPattern: ".*Error sending message.*",
-          },
-          {
-            statusCode: "400",
-            selectionPattern: ".*Missing required parameters.*",
-          },
-        ],
-        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
-      }),
-      {
-        authorizationType: apigateway.AuthorizationType.COGNITO,
-        authorizer,
-        methodResponses: [
-          {
-            statusCode: "202",
-          },
-          {
-            statusCode: "500",
-          },
-          {
-            statusCode: "400",
-          },
-        ],
-        requestValidatorOptions: {
-          validateRequestBody: true,
-          validateRequestParameters: true,
-        },
-        requestModels: {
-          "application/json": processModel,
-        }
+    // The Lambda Integration for the API Gateway
+    const lambdaIntegration = new apigateway.LambdaIntegration(appFn, {
+      proxy: false,
+      requestTemplates: {
+        "application/json": `{"body": "$util.escapeJavaScript($input.json('$'))"}`,
       },
-    );
+      requestParameters: {
+        "integration.request.header.X-Amz-Invocation-Type": "'Event'",
+      },
+      integrationResponses: [
+        {
+          statusCode: "202",
+        },
+        {
+          statusCode: "500",
+          selectionPattern: ".*Error sending message.*",
+        },
+        {
+          statusCode: "400",
+          selectionPattern: ".*Missing required parameters.*",
+        },
+      ],
+      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+    });
+
+    // Not using proxy to be able to do asynchronous calls.
+    process.addMethod("POST", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer,
+      methodResponses: [
+        {
+          statusCode: "202",
+        },
+        {
+          statusCode: "500",
+        },
+        {
+          statusCode: "400",
+        },
+      ],
+      requestValidatorOptions: {
+        validateRequestBody: true,
+        validateRequestParameters: true,
+      },
+      requestModels: {
+        "application/json": processModel,
+      },
+    });
 
     return api;
   }

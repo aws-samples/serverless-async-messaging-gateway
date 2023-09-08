@@ -5,13 +5,14 @@ import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as eventsources from "aws-cdk-lib/aws-lambda-event-sources";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
 import * as pipes from "aws-cdk-lib/aws-pipes";
 import * as sfn from "aws-cdk-lib/aws-stepfunctions";
 import * as sqs from "aws-cdk-lib/aws-sqs";
-import * as lambda from "aws-cdk-lib/aws-lambda";
 import { Construct } from "constructs";
 import { NagSuppressions } from "cdk-nag";
 
@@ -484,6 +485,7 @@ export class Gateway extends Construct {
           "@aws-lambda-powertools/logger",
           "@aws-lambda-powertools/metrics",
           "@aws-lambda-powertools/tracer",
+          "@aws-lambda-powertools/batch",
         ],
         format: nodejs.OutputFormat.ESM,
         target: "node18",
@@ -512,9 +514,9 @@ export class Gateway extends Construct {
       ]);
 
     // Integrates with the Connections DynamoDB stream with a EventBridge pipe to start execution when a new websocket connection is made
-    const pipeRole = new iam.Role(this, "NewConnectionPipeRole", {
-      assumedBy: new iam.ServicePrincipal("pipes.amazonaws.com"),
-    });
+    // const pipeRole = new iam.Role(this, "NewConnectionPipeRole", {
+    //   assumedBy: new iam.ServicePrincipal("pipes.amazonaws.com"),
+    // });
 
     if (connectionsTable.tableStreamArn === undefined) {
       throw new Error(
@@ -522,72 +524,95 @@ export class Gateway extends Construct {
       );
     }
 
-    new pipes.CfnPipe(this, "NewConnectionPipe", {
-      roleArn: pipeRole.roleArn,
-      source: connectionsTable.tableStreamArn,
-      target: lambdaFn.functionArn,
-      targetParameters: {
-        lambdaFunctionParameters: {
-          invocationType: "REQUEST_RESPONSE",
-        },
-      },
-      sourceParameters: {
-        dynamoDbStreamParameters: {
-          startingPosition: "LATEST",
-        },
-        filterCriteria: {
-          filters: [
-            {
-              pattern: JSON.stringify({
-                eventName: ["INSERT", "MODIFY"],
-              }),
-            },
-          ],
-        },
-      },
-    });
-
-    pipeRole.attachInlinePolicy(
-      new iam.Policy(this, "ReadStreamsPolicy", {
-        statements: [
-          new iam.PolicyStatement({
-            actions: [
-              "dynamodb:DescribeStream",
-              "dynamodb:GetRecords",
-              "dynamodb:GetShardIterator",
-              "dynamodb:ListStreams",
-            ],
-            resources: [`${connectionsTable.tableArn}/stream/*`],
+    lambdaFn.addEventSource(
+      new eventsources.DynamoEventSource(connectionsTable, {
+        reportBatchItemFailures: true,
+        startingPosition: lambda.StartingPosition.LATEST,
+        filters: [
+          lambda.FilterCriteria.filter({
+            eventName: lambda.FilterRule.or("INSERT", "MODIFY"),
           }),
         ],
       }),
     );
 
-    lambdaFn.grantInvoke(pipeRole);
-
     NagSuppressions.addResourceSuppressionsByPath(
       cdk.Stack.of(this),
-      "/ServerlessAsyncMessagingGatewayStack/Gateway/NewConnectionPipeRole/DefaultPolicy/Resource",
+      "/ServerlessAsyncMessagingGatewayStack/Gateway/SendUnsentMessages/ServiceRole/DefaultPolicy/Resource",
       [
         {
           id: "AwsSolutions-IAM5",
-          reason:
-            "The permission allows invoke of any Lambda function version.",
+          reason: "The permission to List streams can't be restricted.",
         },
       ],
     );
 
-    NagSuppressions.addResourceSuppressionsByPath(
-      cdk.Stack.of(this),
-      "/ServerlessAsyncMessagingGatewayStack/Gateway/ReadStreamsPolicy/Resource",
-      [
-        {
-          id: "AwsSolutions-IAM5",
-          reason:
-            "The streams are created during execution, so it is unknown during deployment.",
-        },
-      ],
-    );
+    // new pipes.CfnPipe(this, "NewConnectionPipe", {
+    //   roleArn: pipeRole.roleArn,
+    //   source: connectionsTable.tableStreamArn,
+    //   target: lambdaFn.functionArn,
+    //   targetParameters: {
+    //     lambdaFunctionParameters: {
+    //       invocationType: "REQUEST_RESPONSE",
+    //     },
+    //   },
+    //   sourceParameters: {
+    //     dynamoDbStreamParameters: {
+    //       startingPosition: "LATEST",
+    //     },
+    //     filterCriteria: {
+    //       filters: [
+    //         {
+    //           pattern: JSON.stringify({
+    //             eventName: ["INSERT", "MODIFY"],
+    //           }),
+    //         },
+    //       ],
+    //     },
+    //   },
+    // });
+
+    // pipeRole.attachInlinePolicy(
+    //   new iam.Policy(this, "ReadStreamsPolicy", {
+    //     statements: [
+    //       new iam.PolicyStatement({
+    //         actions: [
+    //           "dynamodb:DescribeStream",
+    //           "dynamodb:GetRecords",
+    //           "dynamodb:GetShardIterator",
+    //           "dynamodb:ListStreams",
+    //         ],
+    //         resources: [`${connectionsTable.tableArn}/stream/*`],
+    //       }),
+    //     ],
+    //   }),
+    // );
+
+    // lambdaFn.grantInvoke(pipeRole);
+
+    // NagSuppressions.addResourceSuppressionsByPath(
+    //   cdk.Stack.of(this),
+    //   "/ServerlessAsyncMessagingGatewayStack/Gateway/NewConnectionPipeRole/DefaultPolicy/Resource",
+    //   [
+    //     {
+    //       id: "AwsSolutions-IAM5",
+    //       reason:
+    //         "The permission allows invoke of any Lambda function version.",
+    //     },
+    //   ],
+    // );
+
+    // NagSuppressions.addResourceSuppressionsByPath(
+    //   cdk.Stack.of(this),
+    //   "/ServerlessAsyncMessagingGatewayStack/Gateway/ReadStreamsPolicy/Resource",
+    //   [
+    //     {
+    //       id: "AwsSolutions-IAM5",
+    //       reason:
+    //         "The streams are created during execution, so it is unknown during deployment.",
+    //     },
+    //   ],
+    // );
   }
 
   /**

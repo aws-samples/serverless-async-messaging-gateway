@@ -10,22 +10,25 @@ reconnects.
 
 This solutions has three components:
 
-* The messaging gateway
+- The messaging gateway
 
   `lib/gateway.ts` - the gateway construct
 
+  `lib/gateway.SendUnsentMessages.mjs` - the Lambda function to enqueue the
+  pending messages when the client connects
+
   `assets/*.asl` - the AWS Step Function workflows
 
-* The authentication component
+- The authentication component
 
   `lib/authentication.ts` - the authentication construct
 
   `lib/authentication.Generator.mjs` - the temporary token generator AWS Lambda
   function implementation
 
-  `lib/authentication.Authorizer.mjs` - the AWS Lambda authorizer 
+  `lib/authentication.Authorizer.mjs` - the AWS Lambda authorizer
 
-* A sample application to simulate a long running async task 
+- A sample application to simulate a long running async task
 
   `lib/application.ts` - the sample application construct
 
@@ -44,10 +47,12 @@ connection ID are stored at the Connections table.
 2\) The user interacts with a system that gives asynchronous responses or
 notifications.
 
-3\) The system produces a result or notification which is sent to the Messaging 
+3\) The system produces a result or notification which is sent to the Messaging
 gateway through the _Message_ API Gateway. The authorization is validated
-through AWS Identity and Access Management (IAM). The API Gateway starts the
-_SendMessage_ Step Function to try to deliver the message.
+through AWS Identity and Access Management (IAM). The API Gateway enqueues the
+message at the _Messages_ FIFO SQS queue to keep the messages ordered. Through
+an EventBridge Pipe, the _SendMessage_ Step Function is started to try to
+deliver the enqueued message.
 
 4\) The workflow retrieves the connection ID for the destination user.
 
@@ -60,18 +65,26 @@ the user. If it is successful, the workflow finishes here.
 stored at the _Messages_ table to be delivered when the user reconnects.
 
 8\) When the users connects (step 1), the connection ID is stored at the
-_Connections_ table. Throught DynamoDB streams, a EventBridge pipe gets the 
-event and starts the _SendUnsentMessages_ Step Function.
+_Connections_ table. Throught DynamoDB streams, the Lambda function
+_SendUnsentMessages_ is invoked.
 
-9\) The workflow retrieves the pending messages for the user.
+9\) The _SendUnsetMessages_ function retrieves the pending messages for the
+user.
 
-10\) For each message, the workflow starts the _SendMessage_ Step Function,
-which goes through the step 4 to 7 for the message.
+10\) The Lambda function sends each message to the _Messages_ queue, which
+triggers the _SendMessage_ Step Function, as described from the step 3 to 7.
 
-11\) The message is deleted from the _Messages_ table.
+11\) The message is deleted from the _Messages_ table if it is successfully
+sent to the queue.
 
-12\) If there is more messages to read for the user, the steps 9 to 11 is
-repeated.
+**Notes**:
+
+* The payload to the message gateway is a JSON object with the following
+  properties:
+
+  `userId` {string}: the user ID from the Cognito User Pool.
+  
+  `message` {string}: the message to send.
 
 ## Authentication component
 
@@ -79,7 +92,7 @@ repeated.
 
 1\) The users authenticate at an Cognito user pool to get an ID token.
 
-2\) To authenticate at the messages WebSocket, the users request a single use 
+2\) To authenticate at the messages WebSocket, the users request a single use
 temporary token passing the ID token at the Authorization header.
 
 3\) The API Gateway validates the ID token at the Cognito user pool.
@@ -87,23 +100,23 @@ temporary token passing the ID token at the Authorization header.
 4\) API Gateway invokes the Lambda function to generate the single use temporary
 token.
 
-5\) The _Generator_ Lambda function creates a JSON token with the issuer and 
-audience being the authentication service, the subject iwiths the user ID, the 
+5\) The _Generator_ Lambda function creates a JSON token with the issuer and
+audience being the authentication service, the subject iwiths the user ID, the
 username with the preferred username, and the token expires after 30 seconds
 This token is encrypt using a KMS key.
 
 6\) The encrypted token in base64 is stored at the _TempKeys_ DynamoDB table
 with a ttl attribute with the token expiration value.
 
-7\) The user connects to the messages WebSocket passing the single use temporary 
-token at the query string “token”. The API Gateway invokes the Lambda authorizer 
+7\) The user connects to the messages WebSocket passing the single use temporary
+token at the query string “token”. The API Gateway invokes the Lambda authorizer
 to validate the token. The Lambda authorizer deletes the token from the
 _TempKeys_ table requesting to return the old record: if the returned record is
 empty, the access is denied.
 
-8\) The Lambda authorizer decrypts the single use temporary token and validates 
+8\) The Lambda authorizer decrypts the single use temporary token and validates
 the issuer, audience, and expiration. If there isn't any problem, the Lambda
-authorizer returns a policy authorizing the connections with the principal as 
+authorizer returns a policy authorizing the connections with the principal as
 the user ID and the username at the context.
 
 ## Deployment and tests
@@ -123,7 +136,7 @@ cdk deploy
 To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
 1. Create a user at the Cognito user pool while defining ther user's password:
-   
+
    `node bin/msg.mjs create-user -p <password>`
 
 2. Authenticate the user:
@@ -150,6 +163,7 @@ To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
    messages that were sent in step 6.
 
 ### Clean up
+
 Run:
 
 ```sh

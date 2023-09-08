@@ -137,7 +137,7 @@ export class Gateway extends Construct {
   /**
    * Creates the Messages table.
    *
-   * The recoreds have the following properties:
+   * The records have the following properties:
    * - userId {PK, string}: the user ID from the Cognito User Pool.
    * - timestamp {SK, number}: the timestamp of the message when the gateway received it for the first time.
    * - message {string}: the message to send.
@@ -513,10 +513,7 @@ export class Gateway extends Construct {
         },
       ]);
 
-    // Integrates with the Connections DynamoDB stream with a EventBridge pipe to start execution when a new websocket connection is made
-    // const pipeRole = new iam.Role(this, "NewConnectionPipeRole", {
-    //   assumedBy: new iam.ServicePrincipal("pipes.amazonaws.com"),
-    // });
+    // Integrates with the Connections DynamoDB stream to start execution when a new websocket connection is made
 
     if (connectionsTable.tableStreamArn === undefined) {
       throw new Error(
@@ -546,73 +543,6 @@ export class Gateway extends Construct {
         },
       ],
     );
-
-    // new pipes.CfnPipe(this, "NewConnectionPipe", {
-    //   roleArn: pipeRole.roleArn,
-    //   source: connectionsTable.tableStreamArn,
-    //   target: lambdaFn.functionArn,
-    //   targetParameters: {
-    //     lambdaFunctionParameters: {
-    //       invocationType: "REQUEST_RESPONSE",
-    //     },
-    //   },
-    //   sourceParameters: {
-    //     dynamoDbStreamParameters: {
-    //       startingPosition: "LATEST",
-    //     },
-    //     filterCriteria: {
-    //       filters: [
-    //         {
-    //           pattern: JSON.stringify({
-    //             eventName: ["INSERT", "MODIFY"],
-    //           }),
-    //         },
-    //       ],
-    //     },
-    //   },
-    // });
-
-    // pipeRole.attachInlinePolicy(
-    //   new iam.Policy(this, "ReadStreamsPolicy", {
-    //     statements: [
-    //       new iam.PolicyStatement({
-    //         actions: [
-    //           "dynamodb:DescribeStream",
-    //           "dynamodb:GetRecords",
-    //           "dynamodb:GetShardIterator",
-    //           "dynamodb:ListStreams",
-    //         ],
-    //         resources: [`${connectionsTable.tableArn}/stream/*`],
-    //       }),
-    //     ],
-    //   }),
-    // );
-
-    // lambdaFn.grantInvoke(pipeRole);
-
-    // NagSuppressions.addResourceSuppressionsByPath(
-    //   cdk.Stack.of(this),
-    //   "/ServerlessAsyncMessagingGatewayStack/Gateway/NewConnectionPipeRole/DefaultPolicy/Resource",
-    //   [
-    //     {
-    //       id: "AwsSolutions-IAM5",
-    //       reason:
-    //         "The permission allows invoke of any Lambda function version.",
-    //     },
-    //   ],
-    // );
-
-    // NagSuppressions.addResourceSuppressionsByPath(
-    //   cdk.Stack.of(this),
-    //   "/ServerlessAsyncMessagingGatewayStack/Gateway/ReadStreamsPolicy/Resource",
-    //   [
-    //     {
-    //       id: "AwsSolutions-IAM5",
-    //       reason:
-    //         "The streams are created during execution, so it is unknown during deployment.",
-    //     },
-    //   ],
-    // );
   }
 
   /**

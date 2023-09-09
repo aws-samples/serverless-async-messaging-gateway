@@ -50,19 +50,11 @@ export class Application extends Construct {
    * @returns the created Lambda function.
    */
   private createApp(messageUrl: string): lambda.IFunction {
-    const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
-      this,
-      "PowertoolsLayer",
-      `arn:aws:lambda:${
-        cdk.Stack.of(this).region
-      }:094274105915:layer:AWSLambdaPowertoolsTypeScript:18`,
-    );
-
     const sampleHandler = new nodejs.NodejsFunction(this, "sample", {
       runtime: lambda.Runtime.NODEJS_18_X,
       architecture: lambda.Architecture.ARM_64,
       timeout: cdk.Duration.minutes(15),
-      layers: [powertoolsLayer],
+      layers: [utils.getPowertoolsLayer(this)],
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
@@ -84,7 +76,7 @@ export class Application extends Construct {
         POWERTOOLS_SERVICE_NAME: "sampleapp",
       },
     });
-    utils.applyLogRemovalPolicy(sampleHandler);
+    utils.applyLambdaLogRemovalPolicy(sampleHandler);
 
     if (sampleHandler.role !== undefined)
       NagSuppressions.addResourceSuppressions(sampleHandler.role, [

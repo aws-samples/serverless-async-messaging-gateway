@@ -32,16 +32,11 @@ export class Authentication extends Construct {
   // The Lambda authorizer to validate the temp token from the query string
   public readonly tokenAuthorizerFn: lambda.IFunction;
 
-  // The Powertools Layer
-  private readonly powertoolsLayer: lambda.ILayerVersion;
-
   /**
    * Constructs the authentication component.
    */
   constructor(scope: Construct, id: string, props: AuthenticationProps) {
     super(scope, id);
-
-    this.powertoolsLayer = this.createPowertoolsLayer();
 
     const { userPool, client } = this.createCognitoUserPool();
     this.userPool = userPool;
@@ -158,21 +153,6 @@ export class Authentication extends Construct {
   }
 
   /**
-   * Creates the Powertools Layer.
-   *
-   * @return the layer reference.
-   */
-  private createPowertoolsLayer(): lambda.ILayerVersion {
-    return lambda.LayerVersion.fromLayerVersionArn(
-      this,
-      "PowertoolsLayer",
-      `arn:aws:lambda:${
-        cdk.Stack.of(this).region
-      }:094274105915:layer:AWSLambdaPowertoolsTypeScript:18`,
-    );
-  }
-
-  /**
    * Creates the API to request the temporary token.
    *
    * @param service the service name to set as issuer and audience.
@@ -196,7 +176,7 @@ export class Authentication extends Construct {
     const lambdaFn = new nodejs.NodejsFunction(this, "Generator", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
-      layers: [this.powertoolsLayer],
+      layers: [utils.getPowertoolsLayer(this)],
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
@@ -220,7 +200,7 @@ export class Authentication extends Construct {
         POWERTOOLS_SERVICE_NAME: "token-generator",
       },
     });
-    utils.applyLogRemovalPolicy(lambdaFn);
+    utils.applyLambdaLogRemovalPolicy(lambdaFn);
 
     lambdaFn.role?.attachInlinePolicy(
       new iam.Policy(this, "ExecutionPolicy", {
@@ -301,7 +281,7 @@ export class Authentication extends Construct {
     const lambdaFn = new nodejs.NodejsFunction(this, "Authorizer", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
-      layers: [this.powertoolsLayer],
+      layers: [utils.getPowertoolsLayer(this)],
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
@@ -325,7 +305,7 @@ export class Authentication extends Construct {
         POWERTOOLS_SERVICE_NAME: "lambda-authorizer",
       },
     });
-    utils.applyLogRemovalPolicy(lambdaFn);
+    utils.applyLambdaLogRemovalPolicy(lambdaFn);
 
     if (lambdaFn.role !== undefined)
       NagSuppressions.addResourceSuppressions(lambdaFn.role, [

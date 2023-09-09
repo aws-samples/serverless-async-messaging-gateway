@@ -38,16 +38,11 @@ export class Gateway extends Construct {
   // The send message API
   private readonly messageApi: apigateway.IRestApi;
 
-  // The Powertools Layer
-  private readonly powertoolsLayer: lambda.ILayerVersion;
-
   /**
    * Constructs the gateway.
    */
   constructor(scope: Construct, id: string, props: GatewayProps) {
     super(scope, id);
-
-    this.powertoolsLayer = this.createPowertoolsLayer();
 
     const connectionsTable = this.createConnectionsTable();
 
@@ -64,11 +59,10 @@ export class Gateway extends Construct {
         connectionsTable,
       );
 
-    this.websocketAuthorizerArn = `arn:${
-      cdk.Stack.of(messagesWebsocket).partition
-    }:execute-api:${cdk.Stack.of(messagesWebsocket).region}:${
-      cdk.Stack.of(messagesWebsocket).account
-    }:${messagesWebsocket.ref}/authorizers/${authorizer.ref}`;
+    this.websocketAuthorizerArn = cdk.Stack.of(messagesWebsocket).formatArn({
+      service: "execute-api",
+      resource: `${messagesWebsocket.ref}/authorizers/${authorizer.ref}`,
+    });
 
     this.createSendMessageSfn(
       messagesQueue,
@@ -92,21 +86,6 @@ export class Gateway extends Construct {
     new cdk.CfnOutput(this, "WebsocketUrl", {
       value: `${messagesWebsocket.attrApiEndpoint}/${stage.ref}`,
     });
-  }
-
-  /**
-   * Creates the Powertools Layer.
-   *
-   * @return the layer reference.
-   */
-  private createPowertoolsLayer(): lambda.ILayerVersion {
-    return lambda.LayerVersion.fromLayerVersionArn(
-      this,
-      "PowertoolsLayer",
-      `arn:aws:lambda:${
-        cdk.Stack.of(this).region
-      }:094274105915:layer:AWSLambdaPowertoolsTypeScript:18`,
-    );
   }
 
   /**
@@ -272,11 +251,11 @@ export class Gateway extends Construct {
       {
         apiId: messagesWebsocket.ref,
         integrationType: "AWS",
-        integrationUri: `arn:${
-          cdk.Stack.of(connectionsTable).partition
-        }:apigateway:${
-          cdk.Stack.of(connectionsTable).region
-        }:dynamodb:action/PutItem`,
+        integrationUri: cdk.Stack.of(connectionsTable).formatArn({
+          service: "apigateway",
+          account: "dynamodb",
+          resource: "action/PutItem",
+        }),
         credentialsArn: connectionsIntegrationRole.roleArn,
         integrationMethod: "POST",
         passthroughBehavior: "NEVER",
@@ -307,11 +286,11 @@ export class Gateway extends Construct {
       apiId: messagesWebsocket.ref,
       authorizerType: "REQUEST",
       name: "TokenAuthorizer",
-      authorizerUri: `arn:${cdk.Stack.of(authorizerFn).partition}:apigateway:${
-        cdk.Stack.of(authorizerFn).region
-      }:lambda:path/2015-03-31/functions/${
-        authorizerFn.functionArn
-      }/invocations`,
+      authorizerUri: cdk.Stack.of(authorizerFn).formatArn({
+        service: "apigateway",
+        account: "lambda",
+        resource: `path/2015-03-31/functions/${authorizerFn.functionArn}/invocations`,
+      }),
       identitySource: ["route.request.querystring.token"],
     });
 
@@ -381,11 +360,10 @@ export class Gateway extends Construct {
       new iam.PolicyStatement({
         actions: ["execute-api:ManageConnections"],
         resources: [
-          `arn:${cdk.Stack.of(messagesWebsocket).partition}:execute-api:${
-            cdk.Stack.of(messagesWebsocket).region
-          }:${cdk.Stack.of(messagesWebsocket).account}:${
-            messagesWebsocket.attrApiId
-          }/${apiStage}/POST/@connections/*`,
+          cdk.Stack.of(messagesWebsocket).formatArn({
+            service: "execute-api",
+            resource: `${messagesWebsocket.attrApiId}/${apiStage}/POST/@connections/*`,
+          }),
         ],
       }),
     );
@@ -475,7 +453,7 @@ export class Gateway extends Construct {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(30),
-      layers: [this.powertoolsLayer],
+      layers: [utils.getPowertoolsLayer(this)],
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
@@ -499,7 +477,7 @@ export class Gateway extends Construct {
         POWERTOOLS_SERVICE_NAME: "send-unsent-messages",
       },
     });
-    utils.applyLogRemovalPolicy(lambdaFn);
+    utils.applyLambdaLogRemovalPolicy(lambdaFn);
 
     messagesTable.grantReadWriteData(lambdaFn);
     messagesQueue.grantSendMessages(lambdaFn);
@@ -682,11 +660,10 @@ export class Gateway extends Construct {
       new iam.PolicyStatement({
         actions: ["execute-api:Invoke"],
         resources: [
-          `arn:${cdk.Stack.of(this.messageApi).partition}:execute-api:${
-            cdk.Stack.of(this.messageApi).region
-          }:${cdk.Stack.of(this.messageApi).account}:${
-            this.messageApi.restApiId
-          }/${this.messageApi.deploymentStage.stageName}/POST/message`,
+          cdk.Stack.of(this.messageApi).formatArn({
+            service: "execute-api",
+            resource: `${this.messageApi.restApiId}/${this.messageApi.deploymentStage.stageName}/POST/message`,
+          }),
         ],
       }),
     );

@@ -25,6 +25,7 @@ const OUTPUT_MAP = [
 ];
 
 async function getStackOutputs() {
+  console.warn("Getting stack outputs...");
   const client = new CloudFormationClient({ region: program.opts().region });
   const input = {
     StackName: program.opts().stack,

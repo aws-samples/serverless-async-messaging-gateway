@@ -41,49 +41,58 @@ This solutions has three components:
 1\) The user connects to the websocket to establish a communication path to
 receive the messages. The connection is validated using a single use temporary
 token using the Lambda authorizer provided by the Authentication component (see
-the Authentication component). When the user is connected, the user ID and the
-connection ID are stored at the Connections table.
+the Authentication architecture). When the user is connected, the user ID and
+the connection ID are stored at the Connections table.
 
 2\) The user interacts with a system that gives asynchronous responses or
 notifications.
 
 3\) The system produces a result or notification which is sent to the Messaging
 gateway through the _Message_ API Gateway. The authorization is validated
-through AWS Identity and Access Management (IAM). The API Gateway enqueues the
-message at the _Messages_ FIFO SQS queue to keep the messages ordered. Through
-an EventBridge Pipe, the _SendMessage_ Step Function is started to try to
-deliver the enqueued message.
+through AWS Identity and Access Management (IAM) permissions. The API Gateway
+enqueues the message at the _Messages_ FIFO SQS queue where the message group ID
+is the destination user's ID (in this sample, the Cognito's user ID) so a
+sequence of results or notifications are kept in order.
 
-4\) The workflow retrieves the connection ID for the destination user.
+4\) An EventBridge pipes polls the FIFO queue messages and starts synchronously
+the _SendMessage_ Step Function to deliver the message. The execution is
+synchronous and one message at a time to avoid out of order message delivery.
 
-5\) If the connection ID is found, the workflow tries to send the the message to
-the user. If it is successful, the workflow finishes here.
-
-6\) If there is any error, the message goes to the store message step.
-
-7\) If the connection ID is not found or there is any error, the message is
-stored at the _Messages_ table to be delivered when the user reconnects.
-
-8\) When the users connects (step 1), the connection ID is stored at the
-_Connections_ table. Throught DynamoDB streams, the Lambda function
-_SendUnsentMessages_ is invoked.
-
-9\) The _SendUnsetMessages_ function retrieves the pending messages for the
+5\) The workflow retrieves the websocket's connection ID of the destination
 user.
 
-10\) The Lambda function sends each message to the _Messages_ queue, which
-triggers the _SendMessage_ Step Function, as described from the step 3 to 7.
+6\) If the websocket's connection ID is found, the workflow tries to send the
+the message to the user. If it is successful, the workflow finishes here.
 
-11\) The message is deleted from the _Messages_ table if it is successfully
-sent to the queue.
+7\) If there is any error, the message goes to the store message step.
+
+8\) If the connection ID is not found or there is any error, the message is
+stored at the _Messages_ table to be delivered when the user reconnects.
+
+9\) When the users connects (step 1), the connection ID is stored at the
+_Connections_ table. Through DynamoDB streams, the _SendUnsentMessages_ Lambda
+function is invoked to requeue the pending messages for the user.
+
+10\) The Lambda function retrieves the pending messages for the user. A Lambda
+function is used, instead of a Step Functions, because it is more simple to
+paginate a query to the DynamoDB table.
+
+11\) The _SendUnsentMessages_ Lambda function sends up to 10 messages a time in
+batch to the _Messages_ FIFO queue. A random message deduplication ID is used
+otherwise SQS would reject any attempt to send messages if the user reconnects
+in less than 15 minutes. The steps 4 to 8 are executed for each message
+requeued.
+
+12\) The message is deleted from the Messages table.
+
 
 **Notes**:
 
-* The payload to the message gateway is a JSON object with the following
+- The payload to the message gateway is a JSON object with the following
   properties:
 
   `userId` {string}: the user ID from the Cognito User Pool.
-  
+
   `message` {string}: the message to send.
 
 ## Authentication component

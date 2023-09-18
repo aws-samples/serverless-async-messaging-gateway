@@ -58,7 +58,6 @@ export class Application extends Construct {
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
-          "aws-sdk",
           "@aws-sdk/*",
           "@aws-lambda-powertools/commons",
           "@aws-lambda-powertools/logger",

@@ -187,7 +187,6 @@ export class Authentication extends Construct {
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
-          "aws-sdk",
           "@aws-sdk/*",
           "@aws-lambda-powertools/commons",
           "@aws-lambda-powertools/logger",
@@ -292,7 +291,6 @@ export class Authentication extends Construct {
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
-          "aws-sdk",
           "@aws-sdk/*",
           "@aws-lambda-powertools/commons",
           "@aws-lambda-powertools/logger",

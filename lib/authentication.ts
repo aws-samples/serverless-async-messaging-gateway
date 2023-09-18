@@ -133,6 +133,13 @@ export class Authentication extends Construct {
       removalPolicy: utils.getRemovalPolicy(this.node),
     });
 
+    NagSuppressions.addResourceSuppressions(table, [
+      {
+        id: "AwsSolutions-DDB3",
+        reason: "The table holds temporary information, so PITR is not needed.",
+      },
+    ]);
+
     return table;
   }
 

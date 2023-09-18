@@ -110,6 +110,13 @@ export class Gateway extends Construct {
       removalPolicy,
     });
 
+    NagSuppressions.addResourceSuppressions(connectionsTable, [
+      {
+        id: "AwsSolutions-DDB3",
+        reason: "The table holds temporary information, so PITR is not needed.",
+      },
+    ]);
+
     return connectionsTable;
   }
 

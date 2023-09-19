@@ -80,11 +80,10 @@ paginate a query to the DynamoDB table.
 11\) The _SendUnsentMessages_ Lambda function sends up to 10 messages a time in
 batch to the _Messages_ FIFO queue. A random message deduplication ID is used
 otherwise SQS would reject any attempt to send messages if the user reconnects
-in less than 15 minutes. The steps 4 to 8 are executed for each message
+in less than 5 minutes. The steps 4 to 8 are executed for each message
 requeued.
 
 12\) The message is deleted from the Messages table.
-
 
 **Notes**:
 

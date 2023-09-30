@@ -190,32 +190,19 @@ export class Gateway extends Construct {
       assumedBy: new iam.ServicePrincipal("apigateway.amazonaws.com"),
     });
 
-    role.addToPolicy(
-      new iam.PolicyStatement({
-        resources: ["*"],
-        actions: [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:DescribeLogGroups",
-          "logs:DescribeLogStreams",
-          "logs:PutLogEvents",
-          "logs:GetLogEvents",
-          "logs:FilterLogEvents",
-        ],
-      }),
+    role.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        "service-role/AmazonAPIGatewayPushToCloudWatchLogs",
+      ),
     );
 
-    NagSuppressions.addResourceSuppressions(
-      role,
-      [
-        {
-          id: "AwsSolutions-IAM5",
-          reason:
-            "The API Gateway ID is unknown before the policy creation, so the wildcard is needed.",
-        },
-      ],
-      true,
-    );
+    NagSuppressions.addResourceSuppressions(role, [
+      {
+        id: "AwsSolutions-IAM4",
+        reason:
+          "As the API Gateway CloudWatch role is a singleton, it needs the managed policy to share the same role to all API Gateways.",
+      },
+    ]);
 
     const apiGatewayAccount = new apigateway.CfnAccount(this, "Account", {
       cloudWatchRoleArn: role.roleArn,

@@ -3,12 +3,12 @@
 
 import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
 import type * as cognito from "aws-cdk-lib/aws-cognito";
 import { Construct } from "constructs";
-import { NagSuppressions } from "cdk-nag";
 
 import * as utils from "./utils";
 
@@ -50,10 +50,15 @@ export class Application extends Construct {
    * @returns the created Lambda function.
    */
   private createApp(messageUrl: string): lambda.IFunction {
+    const role = new iam.Role(this, "sampleRole", {
+      assumedBy: new iam.ServicePrincipal("sampleapp.amazonaws.com"),
+    });
+
     const sampleHandler = new nodejs.NodejsFunction(this, "sample", {
       runtime: lambda.Runtime.NODEJS_18_X,
       architecture: lambda.Architecture.ARM_64,
       timeout: cdk.Duration.minutes(15),
+      role: role,
       layers: [utils.getPowertoolsLayer(this)],
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
@@ -76,15 +81,6 @@ export class Application extends Construct {
       },
     });
     utils.applyLambdaLogRemovalPolicy(sampleHandler);
-
-    if (sampleHandler.role !== undefined)
-      NagSuppressions.addResourceSuppressions(sampleHandler.role, [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "Lambda function name is not known before deployment to restrict resource scope, so the managed policy works here.",
-        },
-      ]);
 
     return sampleHandler;
   }

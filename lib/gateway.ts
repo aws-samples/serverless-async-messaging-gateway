@@ -190,19 +190,32 @@ export class Gateway extends Construct {
       assumedBy: new iam.ServicePrincipal("apigateway.amazonaws.com"),
     });
 
-    role.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName(
-        "service-role/AmazonAPIGatewayPushToCloudWatchLogs",
-      ),
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        resources: ["*"],
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams",
+          "logs:PutLogEvents",
+          "logs:GetLogEvents",
+          "logs:FilterLogEvents",
+        ],
+      }),
     );
 
-    NagSuppressions.addResourceSuppressions(role, [
-      {
-        id: "AwsSolutions-IAM4",
-        reason:
-          "The API Gateway name is not known to restrict the policy resource scope.",
-      },
-    ]);
+    NagSuppressions.addResourceSuppressions(
+      role,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "The API Gateway ID is unknown before the policy creation, so the wildcard is needed.",
+        },
+      ],
+      true,
+    );
 
     const apiGatewayAccount = new apigateway.CfnAccount(this, "Account", {
       cloudWatchRoleArn: role.roleArn,
@@ -456,10 +469,15 @@ export class Gateway extends Construct {
   ) {
     // Lambda function to retrieve the pending messages and send to the Messages FIFO queue when a
     // new connection is made.
+    const role = new iam.Role(this, "SendUnsentMessagesRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    });
+
     const lambdaFn = new nodejs.NodejsFunction(this, "SendUnsentMessages", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: cdk.Duration.seconds(30),
+      role: role,
       layers: [utils.getPowertoolsLayer(this)],
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
@@ -488,15 +506,6 @@ export class Gateway extends Construct {
     messagesTable.grantReadWriteData(lambdaFn);
     messagesQueue.grantSendMessages(lambdaFn);
 
-    if (lambdaFn.role !== undefined)
-      NagSuppressions.addResourceSuppressions(lambdaFn.role, [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "Lambda function name is not known before deployment to restrict resource scope, so the managed policy works here.",
-        },
-      ]);
-
     // Integrates with the Connections DynamoDB stream to start execution when a new websocket connection is made
 
     if (connectionsTable.tableStreamArn === undefined) {
@@ -517,15 +526,15 @@ export class Gateway extends Construct {
       }),
     );
 
-    NagSuppressions.addResourceSuppressionsByPath(
-      cdk.Stack.of(this),
-      "/ServerlessAsyncMessagingGatewayStack/Gateway/SendUnsentMessages/ServiceRole/DefaultPolicy/Resource",
+    NagSuppressions.addResourceSuppressions(
+      role,
       [
         {
           id: "AwsSolutions-IAM5",
           reason: "The permission to List streams can't be restricted.",
         },
       ],
+      true,
     );
   }
 

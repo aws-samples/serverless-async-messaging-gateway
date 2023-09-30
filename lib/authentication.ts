@@ -180,10 +180,15 @@ export class Authentication extends Construct {
   ): apigateway.RestApi {
     // The Lambda function to generate the temporary token.
 
+    const role = new iam.Role(this, "GeneratorRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    });
+
     const lambdaFn = new nodejs.NodejsFunction(this, "Generator", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
       layers: [utils.getPowertoolsLayer(this)],
+      role: role,
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
@@ -218,15 +223,6 @@ export class Authentication extends Construct {
         ],
       }),
     );
-
-    if (lambdaFn.role !== undefined)
-      NagSuppressions.addResourceSuppressions(lambdaFn.role, [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "Lambda function name is not known before deployment to restrict resource scope, so the managed policy works here.",
-        },
-      ]);
 
     tokensTable.grantWriteData(lambdaFn);
 
@@ -284,10 +280,15 @@ export class Authentication extends Construct {
     tokensTable: dynamodb.ITable,
     kms: kms.IKey,
   ): lambda.IFunction {
+    const role = new iam.Role(this, "AuthorizerRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    });
+
     const lambdaFn = new nodejs.NodejsFunction(this, "Authorizer", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,
       layers: [utils.getPowertoolsLayer(this)],
+      role: role,
       logRetention: logs.RetentionDays.ONE_DAY,
       bundling: {
         externalModules: [
@@ -311,15 +312,6 @@ export class Authentication extends Construct {
       },
     });
     utils.applyLambdaLogRemovalPolicy(lambdaFn);
-
-    if (lambdaFn.role !== undefined)
-      NagSuppressions.addResourceSuppressions(lambdaFn.role, [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "Lambda function name is not known before deployment to restrict resource scope.",
-        },
-      ]);
 
     kms.grantDecrypt(lambdaFn);
     tokensTable.grantWriteData(lambdaFn);

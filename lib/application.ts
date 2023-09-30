@@ -51,7 +51,7 @@ export class Application extends Construct {
    */
   private createApp(messageUrl: string): lambda.IFunction {
     const role = new iam.Role(this, "sampleRole", {
-      assumedBy: new iam.ServicePrincipal("sampleapp.amazonaws.com"),
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
 
     const sampleHandler = new nodejs.NodejsFunction(this, "sample", {

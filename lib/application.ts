@@ -9,6 +9,7 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
 import type * as cognito from "aws-cdk-lib/aws-cognito";
 import { Construct } from "constructs";
+import { NagSuppressions } from "cdk-nag";
 
 import * as utils from "./utils";
 
@@ -53,6 +54,29 @@ export class Application extends Construct {
     const role = new iam.Role(this, "sampleRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
+
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ],
+        resources: ["*"],
+      }),
+    );
+
+    NagSuppressions.addResourceSuppressions(
+      role,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "The Lambda function name is not known before deployment, so wildcard is used.",
+        },
+      ],
+      true,
+    );
 
     const sampleHandler = new nodejs.NodejsFunction(this, "sample", {
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -152,7 +176,8 @@ export class Application extends Construct {
     const lambdaIntegration = new apigateway.LambdaIntegration(appFn, {
       proxy: false,
       requestTemplates: {
-        "application/json": `{"body": "$util.escapeJavaScript($input.json('$'))"}`,
+        "application/json":
+          '{"body": "$util.escapeJavaScript($input.json(\'$\'))"}',
       },
       requestParameters: {
         "integration.request.header.X-Amz-Invocation-Type": "'Event'",

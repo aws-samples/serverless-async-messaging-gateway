@@ -460,6 +460,17 @@ export class Gateway extends Construct {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
 
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ],
+        resources: ["*"],
+      }),
+    );
+
     const lambdaFn = new nodejs.NodejsFunction(this, "SendUnsentMessages", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_18_X,

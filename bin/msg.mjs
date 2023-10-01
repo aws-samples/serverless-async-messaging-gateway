@@ -14,6 +14,7 @@ import {
   AdminRespondToAuthChallengeCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import * as https from "https";
+import * as fs from "fs";
 import { WebSocket } from "ws";
 
 const OUTPUT_MAP = [
@@ -25,6 +26,14 @@ const OUTPUT_MAP = [
 ];
 
 async function getStackOutputs() {
+  if (program.opts().cache) {
+    try {
+      const data = fs.readFileSync(".msg.cache");
+      const maps = JSON.parse(data);
+      return maps;
+    } catch (err) {}
+  }
+
   console.warn("Getting stack outputs...");
   const client = new CloudFormationClient({ region: program.opts().region });
   const input = {
@@ -42,6 +51,10 @@ async function getStackOutputs() {
         maps[key] = output.OutputValue;
       }
     }
+  }
+
+  if (program.opts().cache) {
+    fs.writeFileSync(".msg.cache", JSON.stringify(maps));
   }
 
   return maps;
@@ -126,6 +139,11 @@ program
     new Option("-r, --region <region>", "the AWS region")
       .env("AWS_DEFAULT_REGION")
       .makeOptionMandatory(),
+  )
+  .addOption(
+    new Option("--cache", "cache and uses the cached stack outputs").default(
+      false,
+    ),
   )
   .hook("preAction", async () => {
     OUTPUTS = await getStackOutputs();

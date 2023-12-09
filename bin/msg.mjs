@@ -15,6 +15,7 @@ import {
 } from "@aws-sdk/client-cognito-identity-provider";
 import * as https from "https";
 import * as fs from "fs";
+import * as crypto from "crypto";
 import { WebSocket } from "ws";
 
 const OUTPUT_MAP = [
@@ -75,7 +76,7 @@ var all = upper + lower + digit + symbol;
  */
 
 function rand(max) {
-  return Math.floor(Math.random() * max);
+  return crypto.random(max+1);
 }
 
 /**

@@ -109,7 +109,7 @@ export function getPowertoolsLayer(
       account: "094274105915",
       service: "lambda",
       resource: "layer",
-      resourceName: "AWSLambdaPowertoolsTypeScript:18",
+      resourceName: "AWSLambdaPowertoolsTypeScript:27",
     }),
   );
 

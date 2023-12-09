@@ -161,7 +161,7 @@ To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
    `export ID_TOKEN="<the ID token from step 2>"`
 
-   `node bin/msg.mjs send-message "Serverless is cool!" -w 20`
+   `node bin/msg.mjs send-message "Serverless is cool\!" -w 20`
 
 5. Stop the WebSocket connection created at step 3.
 

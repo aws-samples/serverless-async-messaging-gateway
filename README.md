@@ -129,13 +129,13 @@ the user ID and the username at the context.
 
 ## Deployment and tests
 
-The deployment was tested with Node.js 18 and AWS Cloud Development Kit (CDK)
+The deployment was tested with Node.js 20 and AWS Cloud Development Kit (CDK)
 v2.
 
 ### Deployment
 
 ```sh
-npm install
+npm ci
 cdk deploy
 ```
 

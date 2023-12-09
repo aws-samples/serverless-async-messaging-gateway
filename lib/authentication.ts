@@ -209,7 +209,7 @@ export class Authentication extends Construct {
 
     const lambdaFn = new nodejs.NodejsFunction(this, "Generator", {
       architecture: lambda.Architecture.ARM_64,
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_20_X,
       layers: [utils.getPowertoolsLayer(this)],
       role: role,
       logRetention: logs.RetentionDays.ONE_DAY,
@@ -222,7 +222,7 @@ export class Authentication extends Construct {
           "@aws-lambda-powertools/tracer",
         ],
         format: nodejs.OutputFormat.ESM,
-        target: "node18",
+        target: "node20",
         minify: true,
         sourceMap: true,
       },
@@ -332,7 +332,7 @@ export class Authentication extends Construct {
 
     const lambdaFn = new nodejs.NodejsFunction(this, "Authorizer", {
       architecture: lambda.Architecture.ARM_64,
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_20_X,
       layers: [utils.getPowertoolsLayer(this)],
       role: role,
       logRetention: logs.RetentionDays.ONE_DAY,
@@ -345,7 +345,7 @@ export class Authentication extends Construct {
           "@aws-lambda-powertools/tracer",
         ],
         format: nodejs.OutputFormat.ESM,
-        target: "node18",
+        target: "node20",
         minify: true,
         sourceMap: true,
       },

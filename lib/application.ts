@@ -79,7 +79,7 @@ export class Application extends Construct {
     );
 
     const sampleHandler = new nodejs.NodejsFunction(this, "sample", {
-      runtime: lambda.Runtime.NODEJS_18_X,
+      runtime: lambda.Runtime.NODEJS_20_X,
       architecture: lambda.Architecture.ARM_64,
       timeout: cdk.Duration.minutes(15),
       role: role,
@@ -94,7 +94,7 @@ export class Application extends Construct {
           "@aws-lambda-powertools/tracer",
         ],
         format: nodejs.OutputFormat.CJS,
-        target: "node18",
+        target: "node20",
         minify: true,
         sourceMap: true,
       },

@@ -10,3 +10,7 @@ cdk.out
 # AST outputs
 probeout/
 ash_output/
+
+# ACAT
+acat_report/
+acat-output.json

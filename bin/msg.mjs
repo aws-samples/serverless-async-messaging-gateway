@@ -76,7 +76,7 @@ var all = upper + lower + digit + symbol;
  */
 
 function rand(max) {
-  return crypto.random(max+1);
+  return crypto.randomInt(max+1);
 }
 
 /**

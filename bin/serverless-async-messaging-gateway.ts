@@ -9,7 +9,8 @@ import { ServerlessAsyncMessagingGatewayStack } from "../lib/serverless-async-me
 
 const app = new cdk.App();
 cdk.Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
-new ServerlessAsyncMessagingGatewayStack(
+const stack = new ServerlessAsyncMessagingGatewayStack(
   app,
   "ServerlessAsyncMessagingGatewayStack",
 );
+stack.templateOptions.templateFormatVersion = "2010-09-09"

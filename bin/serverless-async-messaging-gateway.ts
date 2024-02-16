@@ -13,4 +13,4 @@ const stack = new ServerlessAsyncMessagingGatewayStack(
   app,
   "ServerlessAsyncMessagingGatewayStack",
 );
-stack.templateOptions.templateFormatVersion = "2010-09-09"
+stack.templateOptions.templateFormatVersion = "2010-09-09";

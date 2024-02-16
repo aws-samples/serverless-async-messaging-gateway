@@ -7,9 +7,6 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "prettier:check": "prettier . --check",
-    "prettier:write": "prettier . --write",
-    "eslint": "eslint .",
     "cdk": "cdk"
   },
   "devDependencies": {
@@ -18,15 +15,10 @@
     "@aws-sdk/client-cognito-identity-provider": "^3.370.0",
     "@types/node": "^20.5.6",
     "@types/source-map-support": "^0.5.7",
-    "@typescript-eslint/eslint-plugin": "^6.6.0",
-    "@typescript-eslint/parser": "^6.6.0",
     "aws-cdk": "^2.99.1",
     "cdk-nag": "^2.27.102",
     "commander": "^11.0.0",
     "esbuild": "^0.19.0",
-    "eslint": "^8.48.0",
-    "eslint-config-prettier": "^9.0.0",
-    "prettier": "3.1.0",
     "ts-node": "^10.9.1",
     "typescript": "~5.3.3",
     "ws": "^8.13.0"

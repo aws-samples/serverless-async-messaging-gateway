@@ -32,7 +32,9 @@ async function getStackOutputs() {
       const data = fs.readFileSync(".msg.cache");
       const maps = JSON.parse(data);
       return maps;
-    } catch (err) {}
+    } catch (err) {
+      // Ignore any errors and continue processing without the cache
+    }
   }
 
   console.warn("Getting stack outputs...");
@@ -76,7 +78,7 @@ var all = upper + lower + digit + symbol;
  */
 
 function rand(max) {
-  return crypto.randomInt(max+1);
+  return crypto.randomInt(max + 1);
 }
 
 /**

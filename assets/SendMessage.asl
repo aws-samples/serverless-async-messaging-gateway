@@ -1,5 +1,4 @@
 {
-  "Comment": "A description of my state machine",
   "StartAt": "Map",
   "States": {
     "Map": {

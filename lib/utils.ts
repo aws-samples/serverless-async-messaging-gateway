@@ -1,5 +1,5 @@
 /*! Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. */
-/*! SPDXSPDX-License-Identifier: MIT-0 */
+/*! SPDX-License-Identifier: MIT-0 */
 
 import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";

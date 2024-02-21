@@ -1,9 +1,10 @@
 /*! Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved. */
-/*! SPDXSPDX-License-Identifier: MIT-0 */
+/*! SPDX-License-Identifier: MIT-0 */
 
 import * as cdk from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
+
 import { Authentication } from "./authentication";
 import { Gateway } from "./gateway";
 import { Application } from "./application";

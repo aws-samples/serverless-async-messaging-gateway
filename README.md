@@ -145,11 +145,11 @@ To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
 1. Create a user at the Cognito user pool while defining ther user's password:
 
-   `node bin/msg.mjs create-user -p <password>`
+   `node bin/msg.mjs create-user -u <username> -p <at-least-8-chars-password-with-1-number-and-1-spec-char>`
 
 2. Authenticate the user:
 
-   ``eval `node bin/msg.mjs auth -p <password>` ``
+   ``eval `node bin/msg.mjs auth -u <username> -p <password>` ``
 
    Copy the generated ID token.
 
@@ -161,7 +161,7 @@ To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
    `export ID_TOKEN="<the ID token from step 2>"`
 
-   `node bin/msg.mjs send-message "Serverless is cool\!" -w 20`
+   `node bin/msg.mjs send-message "Serverless is cool\!" -w 20 --region <region_where_stack_is_deployed>`
 
 5. Stop the WebSocket connection created at step 3.
 

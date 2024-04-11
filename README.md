@@ -134,17 +134,18 @@ v2.
 
 ### Deployment
 
-1. Make sure to set the default aws region in your environment:
+1. Make sure to set the default AWS region in your environment:
 
-```sh
-export AWS_DEFAULT_REGION=<region>
-```
+    ```sh
+    export AWS_DEFAULT_REGION=<region>
+    ```
+
 2. Execute the deploy steps:
 
-```sh
-npm ci
-cdk deploy
-```
+    ```sh
+    npm ci
+    cdk deploy
+    ```
 
 ### Testing
 
@@ -190,7 +191,9 @@ starts with _ServerlessAsyncMessaging_.
 
 ### Troubleshooting
 
-1. (``InvalidPasswordException``) If you have encountered the Invalid Password Exception, make sure to delete the default user "testUser" through the amazon cognito user pool and restart the deployment through step 1 respecting the password policy
+1. ``InvalidPasswordException``
+
+    If you have encountered the "Invalid Password Exception", make sure to delete the default user "testUser" at the Amazon Cognito user pool and restart the deployment through step 1 respecting the password policy.
 
 ## Security
 

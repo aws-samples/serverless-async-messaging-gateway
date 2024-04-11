@@ -150,7 +150,7 @@ cdk deploy
 
 To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
-1. Create an user at the Cognito user pool while defining the user's password (should have at least 8 characters combining uppercase, lowercase, numbers, and special):
+1. Create a user at the Cognito user pool while defining the user's password (should have at least 8 characters combining uppercase, lowercase, numbers, and special):
 
    `node bin/msg.mjs create-user -p <password>`
 

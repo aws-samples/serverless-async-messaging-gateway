@@ -134,6 +134,13 @@ v2.
 
 ### Deployment
 
+1. Make sure to set the default aws region in your environment:
+
+```sh
+export AWS_DEFAULT_REGION=<region>
+```
+2. Execute the deploy steps:
+
 ```sh
 npm ci
 cdk deploy
@@ -143,13 +150,13 @@ cdk deploy
 
 To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
-1. Create a user at the Cognito user pool while defining ther user's password:
+1. Create an user at the Cognito user pool while defining the user's password (should have at least 8 characters combining uppercase, lowercase, numbers, and special):
 
-   `node bin/msg.mjs create-user -u <username> -p <at-least-8-chars-password-with-1-number-and-1-spec-char>`
+   `node bin/msg.mjs create-user -p <password>`
 
 2. Authenticate the user:
 
-   ``eval `node bin/msg.mjs auth -u <username> -p <password>` ``
+   ``eval `node bin/msg.mjs auth -p <password>` ``
 
    Copy the generated ID token.
 

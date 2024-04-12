@@ -134,40 +134,50 @@ v2.
 
 ### Deployment
 
-```sh
-npm ci
-cdk deploy
-```
+1. Make sure to set the default AWS region in your environment:
+
+    ```sh
+    export AWS_DEFAULT_REGION=<region>
+    ```
+
+2. Execute the deploy steps:
+
+    ```sh
+    npm ci
+    cdk deploy
+    ```
 
 ### Testing
 
 To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
-1. Create a user at the Cognito user pool while defining ther user's password:
+1. Create a user at the Cognito user pool while defining the user's password
+   (should have at least 8 characters combining uppercase, lowercase, numbers,
+   and special):
 
    `node bin/msg.mjs create-user -p <password>`
 
-2. Authenticate the user:
+3. Authenticate the user:
 
    ``eval `node bin/msg.mjs auth -p <password>` ``
 
    Copy the generated ID token.
 
-3. Connect to the messages WebSocket:
+4. Connect to the messages WebSocket:
 
    `node bin/msg.mjs connect-websocket`
 
-4. In a new terminal, send a message running:
+5. In a new terminal, send a message running:
 
    `export ID_TOKEN="<the ID token from step 2>"`
 
    `node bin/msg.mjs send-message "Serverless is cool\!" -w 20`
 
-5. Stop the WebSocket connection created at step 3.
+6. Stop the WebSocket connection created at step 3.
 
-6. Send 3 to 5 different messages as you did in step 4.
+7. Send 3 to 5 different messages as you did in step 4.
 
-7. Reconnect the WebSocket as you did in step 3 and check if you received the
+8. Reconnect the WebSocket as you did in step 3 and check if you received the
    messages that were sent in step 6.
 
 ### Clean up
@@ -180,6 +190,14 @@ cdk destroy
 
 To remove the logs, access the CloudWatch Logs console and delete the logs that
 starts with _ServerlessAsyncMessaging_. 
+
+### Troubleshooting
+
+1. ``InvalidPasswordException``
+
+    If you have encountered the "Invalid Password Exception", make sure to
+    delete the default user "testUser" at the Amazon Cognito user pool and
+    restart the deployment through step 1 respecting the password policy.
 
 ## Security
 

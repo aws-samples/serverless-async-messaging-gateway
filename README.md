@@ -134,16 +134,22 @@ v2.
 
 ### Deployment
 
-1. Make sure to set the default AWS region in your environment:
+1. Authenticate your shell with AWS. Make sure to set the default AWS region in
+   your environment setting the `AWS_DEFAULT_REGION` environment variable.:
 
     ```sh
     export AWS_DEFAULT_REGION=<region>
     ```
 
-2. Execute the deploy steps:
+2. Install the project dependencies:
+
+   ```sh
+   npm install
+   ```
+
+3. Execute the deploy step:
 
     ```sh
-    npm ci
     cdk deploy
     ```
 
@@ -151,15 +157,22 @@ v2.
 
 To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
-1. Create a user at the Cognito user pool while defining the user's password
+1. Authenticate your shell with AWS. Make sure to set the default AWS region in
+   your environment:
+
+    ```sh
+    export AWS_DEFAULT_REGION=<region>
+    ```
+
+2. Create a user at the Cognito user pool while defining the user's password
    (should have at least 8 characters combining uppercase, lowercase, numbers,
    and special):
 
-   `node bin/msg.mjs create-user -p <password>`
+   `node bin/msg.mjs create-user -p '<password>'`
 
 3. Authenticate the user:
 
-   ``eval `node bin/msg.mjs auth -p <password>` ``
+   ``eval `node bin/msg.mjs auth -p '<password>'` ``
 
    Copy the generated ID token.
 
@@ -167,18 +180,29 @@ To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
 
    `node bin/msg.mjs connect-websocket`
 
-5. In a new terminal, send a message running:
+5. In a new terminal:
 
-   `export ID_TOKEN="<the ID token from step 2>"`
+   1. Authenticate your shell with AWS. Make sure to set the default AWS region
+      in your environment:
 
-   `node bin/msg.mjs send-message "Serverless is cool\!" -w 20`
+       ```sh
+       export AWS_DEFAULT_REGION=<region>
+       ```
 
-6. Stop the WebSocket connection created at step 3.
+   2. Set the `ID_TOKEN` environment variable in this new terminal:
 
-7. Send 3 to 5 different messages as you did in step 4.
+       `export ID_TOKEN="<the ID token from step 3>"`
+   
+   3. Send a message running:
 
-8. Reconnect the WebSocket as you did in step 3 and check if you received the
-   messages that were sent in step 6.
+       `node bin/msg.mjs send-message "Serverless is cool\!" -w 20`
+
+6. Stop the WebSocket connection created at step 4.
+
+7. Send 3 to 5 different messages as you did in step 5.3 in the second terminal.
+
+8. Reconnect the WebSocket in the first terminal as you did in step 4 and check
+   if you receive the messages that were sent in step 5.3.
 
 ### Clean up
 
@@ -201,7 +225,8 @@ starts with _ServerlessAsyncMessaging_.
 
 ## Security
 
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more
+information.
 
 ## License
 

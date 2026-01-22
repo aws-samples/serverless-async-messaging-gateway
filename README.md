@@ -32,7 +32,7 @@ This solutions has three components:
 
   `lib/application.ts` - the sample application construct
 
-  `lib/application.sample.cjs` - the sample application AWS Lambda function
+  `lib/application.sample.mjs` - the sample application AWS Lambda function
 
 ## Messaging gateway
 
@@ -109,7 +109,7 @@ temporary token passing the ID token at the Authorization header.
 token.
 
 5\) The _Generator_ Lambda function creates a JSON token with the issuer and
-audience being the authentication service, the subject iwiths the user ID, the
+audience being the authentication service, the subject with the user ID, the
 username with the preferred username, and the token expires after 30 seconds
 This token is encrypt using a KMS key.
 
@@ -129,7 +129,7 @@ the user ID and the username at the context.
 
 ## Deployment and tests
 
-The deployment was tested with Node.js 20 and AWS Cloud Development Kit (CDK)
+The deployment was tested with Node.js 24 and AWS Cloud Development Kit (CDK)
 v2.
 
 ### Deployment

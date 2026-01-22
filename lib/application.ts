@@ -93,6 +93,8 @@ export class Application extends Construct {
       bundling: {
         externalModules: [
           "@aws-sdk/*",
+          "@smithy/*",
+          "@aws-crypto/*",
           "@aws-lambda-powertools/commons",
           "@aws-lambda-powertools/logger",
           "@aws-lambda-powertools/metrics",

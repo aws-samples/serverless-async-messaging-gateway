@@ -23,8 +23,7 @@
 ## Key Libraries
 - `aws-cdk-lib` - CDK constructs
 - `@aws-lambda-powertools/logger` - Structured logging
-- `@aws-sdk/*` - AWS SDK v3 clients
-- `aws4` - AWS request signing
+- `@aws-sdk/*` - AWS SDK v3 clients (includes `@smithy/signature-v4` for request signing)
 
 ## Common Commands
 

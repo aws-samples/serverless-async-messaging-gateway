@@ -4,8 +4,12 @@
 import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Node } from "constructs";
 import { IConstruct } from "constructs";
+
+// Powertools version to use
+const POWERTOOLS_VERSION = "2.30.2";
 
 // The format for the API Gateway access logs
 export const ACCESS_LOG_FORMAT =
@@ -89,9 +93,9 @@ export function getApiLog(node: Node): apigateway.StageOptions {
 const POWERTOOLS_LAYERS = new Map<cdk.Stack, lambda.ILayerVersion>();
 
 /**
- * Returns the Powertools Layer.
+ * Returns the Powertools Layer for the current region via SSM parameter lookup.
  *
- * @param construct the construct to base the format of the layer's ARN.
+ * @param construct the construct to base the layer lookup on.
  * @returns the Layer version.
  */
 export function getPowertoolsLayer(
@@ -104,16 +108,15 @@ export function getPowertoolsLayer(
     if (powertoolsLayer !== undefined) return powertoolsLayer;
   }
 
+  const layerArn = ssm.StringParameter.valueForStringParameter(
+    stack,
+    `/aws/service/powertools/typescript/generic/all/${POWERTOOLS_VERSION}`,
+  );
+
   const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
     stack,
     "PowertoolsLayer",
-    stack.formatArn({
-      arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
-      account: "094274105915",
-      service: "lambda",
-      resource: "layer",
-      resourceName: "AWSLambdaPowertoolsTypeScript:27",
-    }),
+    layerArn,
   );
 
   POWERTOOLS_LAYERS.set(stack, powertoolsLayer);

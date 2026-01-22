@@ -195,7 +195,7 @@ To test, you will use a Node.js script (`bin/msg.mjs`). Follow these steps:
    
    3. Send a message running:
 
-       `node bin/msg.mjs send-message "Serverless is cool\!" -w 20`
+       `node bin/msg.mjs send-message "Serverless is cool" -w 20`
 
 6. Stop the WebSocket connection created at step 4.
 

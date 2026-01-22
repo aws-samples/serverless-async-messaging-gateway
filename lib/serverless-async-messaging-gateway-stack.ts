@@ -46,7 +46,7 @@ export class ServerlessAsyncMessagingGatewayStack extends cdk.Stack {
         {
           id: "AwsSolutions-IAM5",
           reason:
-            "This Lambda function is used during deployment to change the Log Retention period. Wildcard is used in the policies as the resources name are unknwon during deployment.",
+            "This Lambda function is used during deployment to change the Log Retention period. Wildcard is used in the policies as the resources name are unknown during deployment.",
         },
       ],
       true,

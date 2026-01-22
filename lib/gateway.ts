@@ -143,6 +143,14 @@ export class Gateway extends Construct {
       removalPolicy,
     });
 
+    NagSuppressions.addResourceSuppressions(messagesTable, [
+      {
+        id: "AwsSolutions-DDB3",
+        reason:
+          "The table holds temporary messages that are deleted after delivery, so PITR is not needed.",
+      },
+    ]);
+
     return messagesTable;
   }
 

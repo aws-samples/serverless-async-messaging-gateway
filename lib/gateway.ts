@@ -676,6 +676,18 @@ export class Gateway extends Construct {
       },
     ]);
 
+    NagSuppressions.addResourceSuppressions(
+      messageApi,
+      [
+        {
+          id: "AwsSolutions-APIG3",
+          reason:
+            "WAF is not required for this demo application. It should be considered for production.",
+        },
+      ],
+      true,
+    );
+
     return messageApi;
   }
 

@@ -226,6 +226,18 @@ export class Application extends Construct {
       },
     });
 
+    NagSuppressions.addResourceSuppressions(
+      api,
+      [
+        {
+          id: "AwsSolutions-APIG3",
+          reason:
+            "WAF is not required for this demo application. It should be considered for production.",
+        },
+      ],
+      true,
+    );
+
     return api;
   }
 }

@@ -99,6 +99,11 @@ export class Authentication extends Construct {
 
     NagSuppressions.addResourceSuppressions(userPool, [
       {
+        id: "AwsSolutions-COG2",
+        reason:
+          "MFA is not required for this demo application. It should be considered for production.",
+      },
+      {
         id: "AwsSolutions-COG3",
         reason:
           "Additional pricing applies for Amazon Cognito advanced security features and it isn't needed for this demo. It should be considered for production.",
@@ -290,6 +295,18 @@ export class Authentication extends Construct {
         validateRequestBody: true,
       },
     });
+
+    NagSuppressions.addResourceSuppressions(
+      api,
+      [
+        {
+          id: "AwsSolutions-APIG3",
+          reason:
+            "WAF is not required for this demo application. It should be considered for production.",
+        },
+      ],
+      true,
+    );
 
     return api;
   }

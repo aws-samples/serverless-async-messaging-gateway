@@ -30,6 +30,7 @@ export function getRemovalPolicy(node: Node): cdk.RemovalPolicy | undefined {
  * Applies the global removal policy to a Lambda function log group.
  *
  * @param lambdaFn the Lambda function to apply the policy to.
+ * @deprecated Use logGroup property on NodejsFunction instead.
  */
 export function applyLambdaLogRemovalPolicy(lambdaFn: lambda.IFunction): void {
   const removalPolicy = getRemovalPolicy(lambdaFn.node);

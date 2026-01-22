@@ -479,13 +479,22 @@ export class Gateway extends Construct {
       }),
     );
 
+    const sendUnsentMessagesLogGroup = new logs.LogGroup(
+      this,
+      "SendUnsentMessagesLogGroup",
+      {
+        retention: logs.RetentionDays.ONE_DAY,
+        removalPolicy: utils.getRemovalPolicy(this.node),
+      },
+    );
+
     const lambdaFn = new nodejs.NodejsFunction(this, "SendUnsentMessages", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_24_X,
       timeout: cdk.Duration.seconds(30),
       role: role,
       layers: [utils.getPowertoolsLayer(this)],
-      logRetention: logs.RetentionDays.ONE_DAY,
+      logGroup: sendUnsentMessagesLogGroup,
       bundling: {
         externalModules: [
           "@aws-sdk/*",
@@ -507,7 +516,6 @@ export class Gateway extends Construct {
         POWERTOOLS_SERVICE_NAME: "send-unsent-messages",
       },
     });
-    utils.applyLambdaLogRemovalPolicy(lambdaFn);
 
     messagesTable.grantReadWriteData(lambdaFn);
     messagesQueue.grantSendMessages(lambdaFn);

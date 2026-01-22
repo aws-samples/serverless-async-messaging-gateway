@@ -8,7 +8,6 @@ import { Construct } from "constructs";
 import { Authentication } from "./authentication";
 import { Gateway } from "./gateway";
 import { Application } from "./application";
-import { NagSuppressions } from "cdk-nag";
 
 export class ServerlessAsyncMessagingGatewayStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -33,23 +32,5 @@ export class ServerlessAsyncMessagingGatewayStack extends cdk.Stack {
     });
 
     gateway.grantInvoke(app.lambdaFn);
-
-    NagSuppressions.addResourceSuppressionsByPath(
-      this,
-      "/ServerlessAsyncMessagingGatewayStack/LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8a",
-      [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "This Lambda function is used during deployment to change the Log Retention period. The managed policy is sufficient.",
-        },
-        {
-          id: "AwsSolutions-IAM5",
-          reason:
-            "This Lambda function is used during deployment to change the Log Retention period. Wildcard is used in the policies as the resources name are unknown during deployment.",
-        },
-      ],
-      true,
-    );
   }
 }

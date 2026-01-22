@@ -78,13 +78,18 @@ export class Application extends Construct {
       true,
     );
 
+    const sampleLogGroup = new logs.LogGroup(this, "sampleLogGroup", {
+      retention: logs.RetentionDays.ONE_DAY,
+      removalPolicy: utils.getRemovalPolicy(this.node),
+    });
+
     const sampleHandler = new nodejs.NodejsFunction(this, "sample", {
       runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
       timeout: cdk.Duration.minutes(15),
       role: role,
       layers: [utils.getPowertoolsLayer(this)],
-      logRetention: logs.RetentionDays.ONE_DAY,
+      logGroup: sampleLogGroup,
       bundling: {
         externalModules: [
           "@aws-sdk/*",
@@ -104,7 +109,6 @@ export class Application extends Construct {
         POWERTOOLS_SERVICE_NAME: "sampleapp",
       },
     });
-    utils.applyLambdaLogRemovalPolicy(sampleHandler);
 
     return sampleHandler;
   }

@@ -207,12 +207,17 @@ export class Authentication extends Construct {
       true,
     );
 
+    const generatorLogGroup = new logs.LogGroup(this, "GeneratorLogGroup", {
+      retention: logs.RetentionDays.ONE_DAY,
+      removalPolicy: utils.getRemovalPolicy(this.node),
+    });
+
     const lambdaFn = new nodejs.NodejsFunction(this, "Generator", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_24_X,
       layers: [utils.getPowertoolsLayer(this)],
       role: role,
-      logRetention: logs.RetentionDays.ONE_DAY,
+      logGroup: generatorLogGroup,
       bundling: {
         externalModules: [
           "@aws-sdk/*",
@@ -234,7 +239,6 @@ export class Authentication extends Construct {
         POWERTOOLS_SERVICE_NAME: "token-generator",
       },
     });
-    utils.applyLambdaLogRemovalPolicy(lambdaFn);
 
     lambdaFn.role?.attachInlinePolicy(
       new iam.Policy(this, "ExecutionPolicy", {
@@ -330,12 +334,17 @@ export class Authentication extends Construct {
       true,
     );
 
+    const authorizerLogGroup = new logs.LogGroup(this, "AuthorizerLogGroup", {
+      retention: logs.RetentionDays.ONE_DAY,
+      removalPolicy: utils.getRemovalPolicy(this.node),
+    });
+
     const lambdaFn = new nodejs.NodejsFunction(this, "Authorizer", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_24_X,
       layers: [utils.getPowertoolsLayer(this)],
       role: role,
-      logRetention: logs.RetentionDays.ONE_DAY,
+      logGroup: authorizerLogGroup,
       bundling: {
         externalModules: [
           "@aws-sdk/*",
@@ -357,7 +366,6 @@ export class Authentication extends Construct {
         POWERTOOLS_SERVICE_NAME: "lambda-authorizer",
       },
     });
-    utils.applyLambdaLogRemovalPolicy(lambdaFn);
 
     kms.grantDecrypt(lambdaFn);
     tokensTable.grantWriteData(lambdaFn);

@@ -6,7 +6,7 @@
 
 ## AWS Services
 - API Gateway (REST + WebSocket)
-- Lambda (Node.js 20, ARM64)
+- Lambda (Node.js 24, ARM64)
 - DynamoDB (on-demand billing)
 - SQS FIFO queues
 - Step Functions (Express workflows)
@@ -18,7 +18,7 @@
 ## Languages & Runtime
 - TypeScript for CDK constructs
 - JavaScript (ESM `.mjs` / CommonJS `.cjs`) for Lambda functions
-- Node.js 20.x runtime
+- Node.js 24.x runtime
 
 ## Key Libraries
 - `aws-cdk-lib` - CDK constructs

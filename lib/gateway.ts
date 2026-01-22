@@ -481,7 +481,7 @@ export class Gateway extends Construct {
 
     const lambdaFn = new nodejs.NodejsFunction(this, "SendUnsentMessages", {
       architecture: lambda.Architecture.ARM_64,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       timeout: cdk.Duration.seconds(30),
       role: role,
       layers: [utils.getPowertoolsLayer(this)],
@@ -496,7 +496,7 @@ export class Gateway extends Construct {
           "@aws-lambda-powertools/batch",
         ],
         format: nodejs.OutputFormat.ESM,
-        target: "node20",
+        target: "node24",
         minify: true,
         sourceMap: true,
       },

@@ -17,7 +17,7 @@
 
 ## Languages & Runtime
 - TypeScript for CDK constructs
-- JavaScript (ESM `.mjs` / CommonJS `.cjs`) for Lambda functions
+- JavaScript (ESM `.mjs`) for Lambda functions
 - Node.js 24.x runtime
 
 ## Key Libraries

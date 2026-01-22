@@ -93,7 +93,7 @@ export class Application extends Construct {
           "@aws-lambda-powertools/metrics",
           "@aws-lambda-powertools/tracer",
         ],
-        format: nodejs.OutputFormat.CJS,
+        format: nodejs.OutputFormat.ESM,
         target: "node24",
         minify: true,
         sourceMap: true,

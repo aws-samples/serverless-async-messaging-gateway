@@ -27,9 +27,9 @@
 - Private methods prefixed with `create` for resource creation
 - JSDoc comments on public APIs
 
-### Lambda Functions (`lib/*.mjs` / `lib/*.cjs`)
-- Named `<construct>.<function>.mjs` or `.cjs`
-- ESM (`.mjs`) preferred; CommonJS (`.cjs`) when required (e.g., aws4)
+### Lambda Functions (`lib/*.mjs`)
+- Named `<construct>.<function>.mjs`
+- ESM format with `export` syntax
 - Export `handler` function
 - Use Powertools Logger for structured logging
 

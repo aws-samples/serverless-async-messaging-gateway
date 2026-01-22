@@ -1,4 +1,5 @@
 {
+  "QueryLanguage": "JSONata",
   "StartAt": "Map",
   "States": {
     "Map": {
@@ -13,25 +14,25 @@
           "Get connectionId": {
             "Type": "Task",
             "Resource": "arn:${partition}:states:::dynamodb:getItem",
-            "Parameters": {
+            "Arguments": {
               "TableName": "${ConnectionsTable}",
               "Key": {
                 "userId": {
-                  "S.$": "$.body.userId"
+                  "S": "{% $states.input.body.userId %}"
                 }
               },
               "ProjectionExpression": "connectionId"
             },
-            "Next": "Send message?",
-            "ResultPath": "$.result.connection"
+            "Assign": {
+              "connectionId": "{% $states.result.Item.connectionId.S %}"
+            },
+            "Next": "Send message?"
           },
           "Send message?": {
             "Type": "Choice",
             "Choices": [
               {
-                "Variable": "$.result.connection.Item.connectionId",
-                "IsPresent": true,
-                "Comment": "Has connectionId",
+                "Condition": "{% $connectionId %}",
                 "Next": "Send message"
               }
             ],
@@ -40,25 +41,20 @@
           "Send message": {
             "Type": "Task",
             "Resource": "arn:${partition}:states:::apigateway:invoke",
-            "Parameters": {
+            "Arguments": {
               "ApiEndpoint": "${ApiEndpoint}",
               "Method": "POST",
               "Stage": "${ApiStage}",
-              "Path.$": "States.Format('@connections/{}', $.result.connection.Item.connectionId.S)",
+              "Path": "{% '@connections/' & $connectionId %}",
               "RequestBody": {
-                "Payload.$": "$.body.message"
+                "Payload": "{% $states.input.body.message %}"
               },
               "AuthType": "IAM_ROLE"
             },
-            "ResultPath": "$.result.invoke",
             "Catch": [
               {
-                "ErrorEquals": [
-                  "ApiGateway.410"
-                ],
-                "Next": "Store message",
-                "Comment": "410 - not connected",
-                "ResultPath": "$.result.invoke"
+                "ErrorEquals": ["ApiGateway.410"],
+                "Next": "Store message"
               }
             ],
             "End": true
@@ -66,22 +62,21 @@
           "Store message": {
             "Type": "Task",
             "Resource": "arn:${partition}:states:::dynamodb:putItem",
-            "Parameters": {
+            "Arguments": {
               "TableName": "${MessagesTable}",
               "Item": {
                 "userId": {
-                  "S.$": "$.body.userId"
+                  "S": "{% $states.input.body.userId %}"
                 },
                 "timestamp": {
-                  "N.$": "States.JsonToString($.body.timestamp)"
+                  "N": "{% $string($states.input.body.timestamp) %}"
                 },
                 "message": {
-                  "S.$": "$.body.message"
+                  "S": "{% $states.input.body.message %}"
                 }
               }
             },
-            "End": true,
-            "ResultPath": "$.result.storemessage"
+            "End": true
           }
         }
       },

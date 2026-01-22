@@ -43,7 +43,7 @@
             "Parameters": {
               "ApiEndpoint": "${ApiEndpoint}",
               "Method": "POST",
-              "Stage": "prod",
+              "Stage": "${ApiStage}",
               "Path.$": "States.Format('@connections/{}', $.result.connection.Item.connectionId.S)",
               "RequestBody": {
                 "Payload.$": "$.body.message"

@@ -23,16 +23,20 @@
               },
               "ProjectionExpression": "connectionId"
             },
-            "Assign": {
-              "connectionId": "{% $states.result.Item.connectionId.S %}"
-            },
-            "Next": "Send message?"
+            "Next": "Send message?",
+            "Output": {
+              "body": "{% $states.input.body %}",
+              "result": {
+                "connection": "{% $states.result %}"
+              }
+            }
           },
           "Send message?": {
             "Type": "Choice",
             "Choices": [
               {
-                "Condition": "{% $connectionId %}",
+                "Condition": "{% $exists($states.input.result.connection.Item.connectionId) %}",
+                "Comment": "Has connectionId",
                 "Next": "Send message"
               }
             ],
@@ -45,7 +49,7 @@
               "ApiEndpoint": "${ApiEndpoint}",
               "Method": "POST",
               "Stage": "${ApiStage}",
-              "Path": "{% '@connections/' & $connectionId %}",
+              "Path": "{% '@connections/' & $states.input.result.connection.Item.connectionId.S %}",
               "RequestBody": {
                 "Payload": "{% $states.input.body.message %}"
               },
@@ -54,7 +58,14 @@
             "Catch": [
               {
                 "ErrorEquals": ["ApiGateway.410"],
-                "Next": "Store message"
+                "Next": "Store message",
+                "Comment": "410 - not connected",
+                "Output": {
+                  "body": "{% $states.input.body %}",
+                  "result": {
+                    "connection": "{% $states.input.result.connection %}"
+                  }
+                }
               }
             ],
             "End": true

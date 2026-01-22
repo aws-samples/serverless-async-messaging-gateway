@@ -84,8 +84,8 @@ export function getApiLog(node: Node): apigateway.StageOptions {
   }
 }
 
-// Holds the created Powertools Layers.
-const POWERTOOLS_LAYERS = new Map<IConstruct, lambda.ILayerVersion>();
+// Holds the created Powertools Layers per stack.
+const POWERTOOLS_LAYERS = new Map<cdk.Stack, lambda.ILayerVersion>();
 
 /**
  * Returns the Powertools Layer.
@@ -96,15 +96,17 @@ const POWERTOOLS_LAYERS = new Map<IConstruct, lambda.ILayerVersion>();
 export function getPowertoolsLayer(
   construct: IConstruct,
 ): lambda.ILayerVersion {
-  if (POWERTOOLS_LAYERS.has(construct)) {
-    const powertoolsLayer = POWERTOOLS_LAYERS.get(construct);
+  const stack = cdk.Stack.of(construct);
+
+  if (POWERTOOLS_LAYERS.has(stack)) {
+    const powertoolsLayer = POWERTOOLS_LAYERS.get(stack);
     if (powertoolsLayer !== undefined) return powertoolsLayer;
   }
 
   const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
-    construct,
+    stack,
     "PowertoolsLayer",
-    cdk.Stack.of(construct).formatArn({
+    stack.formatArn({
       arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
       account: "094274105915",
       service: "lambda",
@@ -113,7 +115,7 @@ export function getPowertoolsLayer(
     }),
   );
 
-  POWERTOOLS_LAYERS.set(construct, powertoolsLayer);
+  POWERTOOLS_LAYERS.set(stack, powertoolsLayer);
 
   return powertoolsLayer;
 }
